@@ -11,8 +11,176 @@
 This software is licensed under the terms of the GNU General Public License v2.0 only (GPL-2.0-only).
 See the LICENSE file for more details.
 
+## sionna-LENA-oran-flexric-smo (this fork)
+
+> Everything in this section is specific to this project. The rest of the
+> README (starting at [Overview](#overview-an-open-source-project) below) is
+> the stock upstream ns-3 documentation, kept as-is for reference.
+
+### What this is
+
+NR-based rebuild of `ns-O-RAN-flexric` (a sibling local project, at
+`/home/user/ns-O-RAN-flexric`) on top of
+**ns-3.48**, which is the first ns-3 release with an **official, upstream
+Sionna RT channel model** (`src/spectrum/model/sionna-rt-channel-model.*`,
+merged via GitLab MR `!2608`), plus the [`nr`](https://github.com/cttc-lena/nr)
+module at branch `5g-lena-v5.0.y`, which already ships
+`NrChannelHelper::ChannelModel::SionnaRT` and an example
+(`contrib/nr/examples/cttc-nr-demo-sionna-rt.cc`) wiring the two together.
+
+The old project (`ns-O-RAN-flexric`) used the legacy `mmwave` module plus a
+hand-rolled ZMQ/protobuf bridge to a separate Sionna Python server process.
+Here, Sionna RT runs **embedded inside the ns-3 process itself** via
+pybind11 (`py::scoped_interpreter`) — no separate server, no network
+protocol for the channel path. On top of that NR+Sionna base, this fork
+adds back everything the old project had:
+
+- The real KHU campus scene and workload (2 gNBs, 15 moving pedestrians),
+  ported from `ns-O-RAN-flexric`'s CSV-driven scenario.
+- The Polyscope 3D GUI for watching gNB/UE positions live.
+- `contrib/oran-interface` (`ns3-o-ran-e2`) + a patch to `contrib/nr` wiring
+  `NrGnbNetDevice`/`NrHelper` to an `E2Termination`, so gNBs can register
+  with FlexRIC's nearRT-RIC over E2AP/E2SM, ported from the old project's
+  fork of the legacy `mmwave` module.
+
+**Status**: the GUI+real-workload path and the RIC/E2 handshake path have
+each been verified independently (see below), but not yet run together in
+one scenario — `scratch/khu-real-nr-sionna.cc` (the real moving-UE workload)
+doesn't set up `E2Termination` yet. Actual KPM report generation and
+RIC-Control message dispatch on the NR side are also not implemented yet
+(the old project's legacy `mmwave` net device had this; the `nr` module
+equivalent doesn't exist upstream and hasn't been written here).
+
+### Layout
+
+```
+LENA-oran-flexric-smo/
+├── src/spectrum/model/sionna-rt-channel-model.{h,cc}  # official Sionna RT channel model
+├── contrib/
+│   ├── nr/            # 5g-lena-v5.0.y + local E2Termination/NrHelper patch, vendored directly
+│   └── oran-interface/  # ns3-o-ran-e2 (E2AP/E2SM), vendored directly
+├── scratch/
+│   ├── khu-real-nr-sionna.cc  # CSV-driven real KHU workload (moving UEs, GUI bridge)
+│   └── zmq_bridge.py          # standalone ZMQ client used by khu-real-nr-sionna.cc
+├── gui/                # standalone copy of the Polyscope GUI (own venv-installable package)
+├── scenes/khu-real/    # KHU campus Sionna RT scene (XML + meshes)
+├── scenarios/khu-real/ # gNB positions + UE movement traces (CSV)
+└── .venv/              # project Python env (sionna-rt 2.0.1, gitignored)
+```
+
+`contrib/nr` and `contrib/oran-interface` were originally separate git
+clones; they're vendored here as plain tracked directories (their prior
+standalone histories, including the `local/oran-e2-integration` E2 patch
+branch, are preserved outside this tree, not inside it). The `origin` remote
+points at this GitHub repo; `upstream` points at the real
+`nsnam/ns-3-dev` GitLab repo this fork started from.
+
+### Prerequisites
+
+```bash
+cd /home/user/LENA-oran-flexric-smo
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r gui/requirements.txt   # sionna-rt, polyscope, matplotlib, omegaconf, etc.
+./ns3 configure --enable-examples --enable-tests --enable-python-bindings
+./ns3 build
+```
+Look for `Sionna-RT support enabled: all required dependencies were found.`
+in the configure output. GPU acceleration (Dr.Jit/Mitsuba CUDA backend)
+works with just the NVIDIA driver — the CUDA toolkit (`nvcc`) is **not**
+required despite a cosmetic configure-time warning about it.
+
+FlexRIC's `nearRT-RIC` and the xApps are **not** vendored into this repo —
+they're reused from the old project's build:
+`/home/user/ns-O-RAN-flexric/flexric/build/examples/...`.
+
+### Running it — GUI, ns-3/Sionna RT, and the O-RAN RIC
+
+There are two independently-verified paths today; they haven't been
+combined into a single run yet.
+
+#### Path A — GUI + real KHU workload (no RIC)
+
+Terminal 1, the Polyscope GUI:
+```bash
+cd /home/user/LENA-oran-flexric-smo
+source .venv/bin/activate
+cd gui
+python scripts/run.py /home/user/LENA-oran-flexric-smo/scenes/khu-real/KHU_Cropped_Sionna_RT.xml
+```
+
+Terminal 2, the ns-3 scenario:
+```bash
+cd /home/user/LENA-oran-flexric-smo
+source .venv/bin/activate
+./ns3 run --no-build "khu-real-nr-sionna \
+  --numerologyBwp1=0 --sionnaUpdatePeriod=10s --simTime=60 \
+  --guiSrc=/home/user/LENA-oran-flexric-smo/scratch --guiHost=localhost"
+```
+`--guiSrc` makes the ns-3 process itself act as the GUI's position
+publisher (via `scratch/zmq_bridge.py`, ports 5600/5601) — the role
+`kyunghee_server.py` used to play in the old project, now absorbed into
+the ns-3 process's embedded Python interpreter. Drop `--guiSrc` to run
+headless. `numerologyBwp1=0` + a 10s `sionnaUpdatePeriod` (vs. the
+defaults of `1`/50ms) cut a 180s run from ~6h42m down to ~4m29s — see
+`NR_ROADMAP.md`-equivalent notes for why (channel recompute cadence
+dominates; numerology roughly doubles/halves PHY event density on top of
+that).
+
+#### Path B — RIC/E2 handshake (official static-UE demo, no GUI/no real workload yet)
+
+Terminal 1, nearRT-RIC:
+```bash
+cd /home/user/ns-O-RAN-flexric/flexric/build/examples/ric
+./nearRT-RIC
+```
+
+Terminal 2, ns-3 with E2 enabled:
+```bash
+cd /home/user/LENA-oran-flexric-smo
+source .venv/bin/activate
+./ns3 run --no-build "cttc-nr-demo-sionna-rt \
+  --Scenario=/home/user/LENA-oran-flexric-smo/scenes/khu-real/KHU_Cropped_Sionna_RT.xml \
+  --gNbNum=2 --ueNumPergNb=2 --simTime=500ms \
+  --centralFrequencyBand1=3.5e9 --bandwidthBand1=20e6 \
+  --ns3::NrHelper::E2ModeNr=true \
+  --ns3::NrHelper::E2TermIp=127.0.0.1 \
+  --ns3::NrHelper::E2LocalPort=38480"
+```
+Pick a fresh `E2LocalPort` each run — a previous run's still-ESTABLISHED
+SCTP association squatting on the computed local port (`E2LocalPort` +
+cellId) causes `Cannot assign requested address` otherwise.
+
+Terminal 3 (optional), an xApp once E2-SETUP succeeds:
+```bash
+cd /home/user/ns-O-RAN-flexric/flexric/build/examples/xApp/c/monitor
+./xapp_kpm_moni
+```
+
+### What talks to what
+
+- **ns-3 <-> Sionna RT**: not a network protocol — pybind11 calls within
+  one process. Every `SionnaRtChannelModel::UpdatePeriod`, ns-3 reads each
+  node pair's `MobilityModel` position and `PhasedArrayModel` antenna
+  geometry, hands them to Sionna's ray-tracing `PathSolver` (GPU-accelerated
+  via Dr.Jit/Mitsuba), and gets back per-path delay/angle/Doppler/complex
+  gain, which becomes an ns-3 `ChannelMatrix` feeding the NR PHY's SINR
+  calculation directly.
+- **ns-3 <-> GUI**: separate from the above — the scenario pushes plain
+  `(x, y, z)` positions over ZMQ (ports 5600/5601) so the GUI can render
+  live movement; the GUI does **not** redo any channel computation itself
+  (`paths.auto_update` is off by default in `gui/scripts/run.py` for
+  exactly this reason — recomputing paths a second time per position update
+  was previously causing ~2s GUI frame times).
+- **ns-3 <-> nearRT-RIC**: real E2AP/E2SM over SCTP, via `oran-interface`'s
+  `E2Termination` (registered per-gNB in `NrHelper::InstallSingleGnbDevice`
+  when `E2ModeNr=true`). Verified through E2-SETUP-REQUEST/RESPONSE only so
+  far — KPM report bodies and RIC-Control dispatch on the NR side are still
+  unimplemented stubs.
+
 ## Table of Contents
 
+* [sionna-LENA-oran-flexric-smo (this fork)](#sionna-lena-oran-flexric-smo-this-fork)
 * [Overview](#overview-an-open-source-project)
 * [Software overview](#software-overview)
 * [Getting ns-3](#getting-ns-3)
