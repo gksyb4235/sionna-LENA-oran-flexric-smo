@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<scene version="2.1.0">
+  <!-- Exported in the KHU common right-handed ENU frame: x=east, y=north, z=up, meters. -->
+  <!-- Geometry only. SUMO UEs are intentionally added dynamically from Python. -->
+  <bsdf type="itu-radio-material" id="mat-asphalt">
+    <string name="type" value="concrete"/>
+    <float name="thickness" value="0.2"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-brick">
+    <string name="type" value="brick"/>
+    <float name="thickness" value="0.2"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-concrete">
+    <string name="type" value="concrete"/>
+    <float name="thickness" value="0.2"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-glass">
+    <string name="type" value="glass"/>
+    <float name="thickness" value="0.02"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-ground">
+    <string name="type" value="medium_dry_ground"/>
+    <float name="thickness" value="1"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-metal">
+    <string name="type" value="metal"/>
+    <float name="thickness" value="0.01"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-plasterboard">
+    <string name="type" value="plasterboard"/>
+    <float name="thickness" value="0.12"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-stone">
+    <string name="type" value="marble"/>
+    <float name="thickness" value="0.12"/>
+  </bsdf>
+  <bsdf type="itu-radio-material" id="mat-wood">
+    <string name="type" value="wood"/>
+    <float name="thickness" value="0.08"/>
+  </bsdf>
+
+  <shape type="ply" id="mesh-surface-asphalt">
+    <string name="filename" value="meshes/asphalt.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-asphalt" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-brick">
+    <string name="filename" value="meshes/brick.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-brick" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-concrete">
+    <string name="filename" value="meshes/concrete.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-concrete" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-glass">
+    <string name="filename" value="meshes/glass.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-glass" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-ground">
+    <string name="filename" value="meshes/ground.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-ground" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-metal">
+    <string name="filename" value="meshes/metal.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-metal" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-plasterboard">
+    <string name="filename" value="meshes/plasterboard.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-plasterboard" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-stone">
+    <string name="filename" value="meshes/stone.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-stone" name="bsdf"/>
+  </shape>
+  <shape type="ply" id="mesh-surface-wood">
+    <string name="filename" value="meshes/wood.ply"/>
+    <boolean name="face_normals" value="true"/>
+    <ref id="mat-wood" name="bsdf"/>
+  </shape>
+</scene>
