@@ -1,0 +1,111 @@
+{
+  "title": "NR Cell KPI",
+  "uid": "nr-cell-kpi",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-5m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current Config (TxP / RET tilt & bearing / TTT / HYS)",
+      "type": "table",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT last(\"tx_power_dbm\") AS \"TxPower (dBm)\", last(\"ret_tilt_deg\") AS \"RET tilt (deg)\", last(\"ret_bearing_deg\") AS \"RET bearing (deg)\", last(\"ttt_ms\") AS \"TTT (ms)\", last(\"hysteresis_db\") AS \"HYS (dB)\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "table"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Connected UEs",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"num_ues\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Avg Serving RSRP (dBm)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "dBm" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"avg_rsrp_dbm\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Aggregate DL Throughput (Mbps)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "Mbits" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"aggregate_throughput_mbps\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Handover In / Out / Ping-Pong (cumulative)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 15 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"ho_in_count\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell HO-in"
+        },
+        {
+          "refId": "B",
+          "query": "SELECT \"ho_out_count\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell HO-out"
+        },
+        {
+          "refId": "C",
+          "query": "SELECT \"pingpong_count\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell ping-pong"
+        }
+      ]
+    }
+  ]
+}

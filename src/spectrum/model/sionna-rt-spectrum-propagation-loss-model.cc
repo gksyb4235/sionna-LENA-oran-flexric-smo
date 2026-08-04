@@ -444,11 +444,21 @@ SionnaRtSpectrumPropagationLossModel::GetLongTerm(
         NS_LOG_DEBUG("found the long term component in the map");
         longTerm = m_longTermMap[longTermId]->m_longTerm;
 
-        // check if the channel matrix has been updated
-        // or the s beam has been changed
-        // or the u beam has been changed
-        update = m_longTermMap[longTermId]->m_channel->m_generatedTime !=
-                     channelMatrix->m_generatedTime ||
+        // Check if the channel matrix has been updated, or the s/u beam has
+        // changed. Comparing m_generatedTime values (rather than the
+        // ChannelMatrix object identity) is not sufficient: when several
+        // distinct channel matrices are (re)computed for the same antenna
+        // pair within the same simulated instant (e.g. many UEs attaching to
+        // a gNB at t=0, each triggering an AntennaSetupChanged-driven
+        // recompute), Simulator::Now() does not advance between them, so two
+        // genuinely different ChannelMatrix objects can carry the exact same
+        // m_generatedTime. That previously caused a stale, smaller-page-count
+        // longTerm to be reused against a newer, larger-page-count
+        // channelMatrix, tripping the numCluster <= longTerm->GetNumPages()
+        // assertion in CalcBeamformingGain. Comparing the ChannelMatrix Ptr
+        // itself is unambiguous regardless of how many recomputations share a
+        // timestamp.
+        update = m_longTermMap[longTermId]->m_channel != channelMatrix ||
                  m_longTermMap[longTermId]->m_sW != sW || m_longTermMap[longTermId]->m_uW != uW;
     }
     else

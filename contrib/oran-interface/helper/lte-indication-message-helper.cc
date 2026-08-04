@@ -27,6 +27,14 @@
 
 namespace ns3 {
 
+TypeId
+LteIndicationMessageHelper::GetTypeId ()
+{
+  static TypeId tid =
+      TypeId ("ns3::LteIndicationMessageHelper").SetParent<IndicationMessageHelper> ();
+  return tid;
+}
+
 LteIndicationMessageHelper::LteIndicationMessageHelper (IndicationMessageType type, bool isOffline,
                                                         bool reducedPmValues)
     : IndicationMessageHelper (type, isOffline, reducedPmValues)

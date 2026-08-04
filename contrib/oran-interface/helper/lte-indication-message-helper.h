@@ -32,6 +32,11 @@ namespace ns3 {
 class LteIndicationMessageHelper : public IndicationMessageHelper
 {
 public:
+  /**
+   * Register this type (see IndicationMessageHelper::GetTypeId).
+   * \return the object TypeId
+   */
+  static TypeId GetTypeId ();
   LteIndicationMessageHelper (IndicationMessageType type, bool isOffline, bool reducedPmValues);
 
   ~LteIndicationMessageHelper ();

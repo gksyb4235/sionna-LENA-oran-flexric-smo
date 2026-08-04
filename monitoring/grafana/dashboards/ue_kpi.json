@@ -1,0 +1,121 @@
+{
+  "title": "NR UE KPI",
+  "uid": "nr-ue-kpi",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-5m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Serving vs. Best-Neighbor RSRP (dBm)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "dBm" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"rsrp_serving_dbm\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue serving"
+        },
+        {
+          "refId": "B",
+          "query": "SELECT \"rsrp_neighbor_dbm\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue best neighbor"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "DL Throughput (Mbps)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "Mbits" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"dl_throughput_mbps\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Handover Count (cumulative)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"ho_count\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Ping-Pong Handover Flag",
+      "type": "state-timeline",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 9 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"is_pingpong\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Seconds Since Last Handover",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"seconds_since_ho\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Latest UE Status",
+      "type": "table",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT last(\"serving_cell\") AS \"serving cell\", last(\"rsrp_serving_dbm\") AS \"rsrp serving\", last(\"neighbor_cell\") AS \"best neighbor\", last(\"rsrp_neighbor_dbm\") AS \"rsrp neighbor\", last(\"dl_throughput_mbps\") AS \"throughput (Mbps)\", last(\"ho_count\") AS \"HO count\", last(\"seconds_since_ho\") AS \"s since HO\", last(\"is_pingpong\") AS \"ping-pong\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "table"
+        }
+      ]
+    }
+  ]
+}

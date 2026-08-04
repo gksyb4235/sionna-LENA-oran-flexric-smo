@@ -390,6 +390,27 @@ NrBearerStatsCalculator::ResetResults()
 }
 
 void
+NrBearerStatsCalculator::ResetResultsForImsiLcid(uint64_t imsi, uint8_t lcid)
+{
+    NS_LOG_FUNCTION(this << imsi << (uint16_t)lcid);
+    nr::ImsiLcidPair_t p(imsi, lcid);
+
+    m_ulTxPackets.erase(p);
+    m_ulRxPackets.erase(p);
+    m_ulRxData.erase(p);
+    m_ulTxData.erase(p);
+    m_ulDelay.erase(p);
+    m_ulPduSize.erase(p);
+
+    m_dlTxPackets.erase(p);
+    m_dlRxPackets.erase(p);
+    m_dlRxData.erase(p);
+    m_dlTxData.erase(p);
+    m_dlDelay.erase(p);
+    m_dlPduSize.erase(p);
+}
+
+void
 NrBearerStatsCalculator::RescheduleEndEpoch()
 {
     NS_LOG_FUNCTION(this);

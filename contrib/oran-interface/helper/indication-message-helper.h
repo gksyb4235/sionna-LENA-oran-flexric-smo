@@ -33,6 +33,13 @@ namespace ns3 {
 class IndicationMessageHelper : public Object
 {
 public:
+  /**
+   * Register this type. Required by ns-3.45+'s CreateObject(), which asserts
+   * that every Object subclass provides its own TypeId (older ns-3 releases,
+   * which this module originally targeted, did not enforce this).
+   * \return the object TypeId
+   */
+  static TypeId GetTypeId ();
   enum class IndicationMessageType { CuCp = 0, CuUp = 1, Du = 2 };
   IndicationMessageHelper (IndicationMessageType type, bool isOffline, bool reducedPmValues);
 

@@ -923,6 +923,14 @@ NrHelper::InstallSingleGnbDevice(
             CreateObject<E2Termination>(m_e2ip, m_e2port, local_port, gnb_id, plmnId);
 
         dev->SetAttribute("E2Termination", PointerValue(e2term));
+
+        // KPM CU-UP indications read per-UE PDCP/RLC statistics from the
+        // helper-level calculators. Creating them connects trace sinks via
+        // Config::Connect, which aborts if no installed device matches the
+        // path yet -- and this device is only added to its node at the end
+        // of InstallSingleGnbDevice. Defer the wiring to simulation time 0,
+        // when every device exists but no UE has connected yet.
+        Simulator::Schedule(Seconds(0), &NrHelper::WireE2StatsCalculators, this, dev);
     }
 
     for (auto& it : ccMap)
@@ -1951,6 +1959,22 @@ NrHelper::EnableRlcE2eTraces()
     NS_LOG_FUNCTION(this);
     Ptr<NrBearerStatsCalculator> rlcStats = CreateObject<NrBearerStatsCalculator>("RLC");
     m_radioBearerStatsConnectorCalculator.EnableRlcStats(rlcStats);
+}
+
+void
+NrHelper::WireE2StatsCalculators(Ptr<NetDevice> dev)
+{
+    NS_LOG_FUNCTION(this);
+    if (!GetPdcpStatsCalculator())
+    {
+        EnablePdcpE2eTraces();
+    }
+    if (!GetRlcStatsCalculator())
+    {
+        EnableRlcE2eTraces();
+    }
+    dev->SetAttribute("E2PdcpCalculator", PointerValue(GetPdcpStatsCalculator()));
+    dev->SetAttribute("E2RlcCalculator", PointerValue(GetRlcStatsCalculator()));
 }
 
 void

@@ -89,6 +89,63 @@ static Ptr<SionnaRtSpectrumPropagationLossModel>
 static int g_snrSamples;  //!< number of SNR samples computed
 static double g_snrSumDb; //!< running sum of SNR values in dB
 
+// ---- Optional live GUI bridge ----
+//
+// Same protocol/ports as scratch/khu-real-nr-sionna.cc's GUI bridge (ZMQ
+// REQ/PUB, 5600/5601, via scratch/zmq_bridge.py). Disabled unless --guiSrc
+// is given, so this stays a drop-in addition that doesn't change default
+// behavior.
+
+static py::object
+ConnectGuiZmqBridge(const std::string& guiSrc, const std::string& guiHost)
+{
+    if (guiSrc.empty())
+    {
+        return py::none();
+    }
+    py::module_ sys = py::module_::import("sys");
+    sys.attr("path").attr("insert")(0, guiSrc);
+    py::object client = py::module_::import("zmq_bridge").attr("ZMQBridgeClient")(
+        py::arg("host") = guiHost);
+    client.attr("connect")();
+    NS_LOG_UNCOND("[gui] connected to Polyscope GUI ZMQ bridge at " << guiHost);
+    return client;
+}
+
+static void
+SendGnbPositionToGui(py::object& client, const std::string& name, const Vector& pos)
+{
+    if (client.is_none())
+    {
+        return;
+    }
+    try
+    {
+        client.attr("send_gnb_position")(name, py::make_tuple(pos.x, pos.y, pos.z));
+    }
+    catch (const py::error_already_set& error)
+    {
+        NS_LOG_UNCOND("[gui] send_gnb_position failed (ignoring): " << error.what());
+    }
+}
+
+static void
+SendUePositionToGui(py::object& client, const std::string& name, const Vector& pos)
+{
+    if (client.is_none())
+    {
+        return;
+    }
+    try
+    {
+        client.attr("send_ue_position")(name, py::make_tuple(pos.x, pos.y, pos.z));
+    }
+    catch (const py::error_already_set& error)
+    {
+        NS_LOG_UNCOND("[gui] send_ue_position failed (ignoring): " << error.what());
+    }
+}
+
 /**
  * @brief A structure that holds the parameters for the
  * ComputeSnr function. In this way the problem with the limited
@@ -103,6 +160,7 @@ struct ComputeSnrParams
     Ptr<PhasedArrayModel> txAntenna; //!< the tx antenna array
     Ptr<PhasedArrayModel> rxAntenna; //!< the rx antenna array
     Ptr<OutputStreamWrapper> stream; //!< output stream wrapper for SNR trace
+    py::object* guiClient;           //!< GUI ZMQ bridge client (py::none() if disabled)
 };
 
 /**
@@ -211,6 +269,8 @@ ComputeSnr(const ComputeSnrParams& params)
     g_snrSamples++;
     g_snrSumDb += snrDb;
 
+    SendUePositionToGui(*params.guiClient, "rx", params.rxMob->GetPosition());
+
     std::cout << "  [t=" << std::fixed << std::setprecision(3) << Simulator::Now().GetSeconds()
               << "s]"
               << "  SNR = " << std::setprecision(2) << snrDb << " dB"
@@ -250,6 +310,9 @@ main(int argc, char* argv[])
     Vector CameraLookAt(Vector(0.0, 0.0, 4.0));        // Camera look-at point
     std::string filenamePrefix = "sionna-rt-scene-";   // output file name for scene images
     std::string filedirectory = "sionna-rt-images";    // output file directory for scene images
+
+    std::string guiSrc;               // empty = GUI bridge disabled
+    std::string guiHost = "localhost";
 
     // Sionna RT path solver configuration defaults
     SionnaRtChannelModel::RtPathSolverConfig RtPathSolverConfig;
@@ -317,8 +380,14 @@ main(int argc, char* argv[])
                  "Enable edge diffraction for sionna-rt configuration",
                  RtPathSolverConfig.edgeDiffraction);
     cmd.AddValue("seed", "Random seed", RtPathSolverConfig.seed);
+    cmd.AddValue("guiSrc",
+                 "Path to the directory containing zmq_bridge.py (empty disables the GUI bridge)",
+                 guiSrc);
+    cmd.AddValue("guiHost", "Polyscope GUI ZMQ bridge host", guiHost);
 
     cmd.Parse(argc, argv);
+
+    py::object guiClient = ConnectGuiZmqBridge(guiSrc, guiHost);
 
     // set the channel update period used by the Sionna RT channel model
     Config::SetDefault("ns3::SionnaRtChannelModel::UpdatePeriod",
@@ -378,6 +447,9 @@ main(int argc, char* argv[])
     nodes.Get(0)->AggregateObject(txMob);
     nodes.Get(1)->AggregateObject(rxMob);
 
+    SendGnbPositionToGui(guiClient, "tx", txMob->GetPosition());
+    SendUePositionToGui(guiClient, "rx", rxMob->GetPosition());
+
     // create the antenna objects and set their dimensions
     Ptr<PhasedArrayModel> txAntenna =
         CreateObjectWithAttributes<UniformPlanarArray>("NumColumns",
@@ -415,8 +487,14 @@ main(int argc, char* argv[])
 
     for (int i = 0; i < floor(simTime / timeRes); i++)
     {
-        ComputeSnrParams
-            params{txMob, rxMob, txPow, noiseFigure, txAntenna, rxAntenna, snrOutputStream};
+        ComputeSnrParams params{txMob,
+                                rxMob,
+                                txPow,
+                                noiseFigure,
+                                txAntenna,
+                                rxAntenna,
+                                snrOutputStream,
+                                &guiClient};
         Simulator::Schedule(MilliSeconds(timeRes * i), &ComputeSnr, params);
     }
 

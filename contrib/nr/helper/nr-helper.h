@@ -1061,6 +1061,15 @@ class NR_EXPORT NrHelper : public Object
     uint16_t m_e2localPort;
 
   private:
+    /**
+     * Create (once) and connect the E2E PDCP/RLC stats calculators, then hand
+     * them to the given E2-enabled gNB device via its E2PdcpCalculator /
+     * E2RlcCalculator attributes. Deferred to simulation time 0 by the E2
+     * block of InstallSingleGnbDevice, because connecting the calculators'
+     * trace sinks requires the devices to already be listed on their nodes.
+     * @param dev the NrGnbNetDevice to wire
+     */
+    void WireE2StatsCalculators(Ptr<NetDevice> dev);
     bool IsMimoFeedbackEnabled() const; ///< Let UE compute MIMO feedback with PMI and RI
     ObjectFactory m_pmSearchFactory;    ///< Factory for precoding matrix search algorithm
     uint8_t m_csiFeedbackFlags{

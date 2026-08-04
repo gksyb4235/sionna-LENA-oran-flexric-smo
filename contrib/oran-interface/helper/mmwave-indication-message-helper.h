@@ -32,6 +32,11 @@ namespace ns3 {
 class MmWaveIndicationMessageHelper : public IndicationMessageHelper
 {
 public:
+  /**
+   * Register this type (see IndicationMessageHelper::GetTypeId).
+   * \return the object TypeId
+   */
+  static TypeId GetTypeId ();
   MmWaveIndicationMessageHelper (IndicationMessageType type, bool isOffline, bool reducedPmValues);
 
   ~MmWaveIndicationMessageHelper ();

@@ -267,6 +267,17 @@ class NR_EXPORT NrBearerStatsCalculator : public NrBearerStatsBase
      */
     std::vector<double> GetDlPduSizeStats(uint64_t imsi, uint8_t lcid);
     /**
+     * Erases the statistics collected so far for one (IMSI, LCID) pair only,
+     * leaving every other flow untouched. Used by the E2/KPM reporting path
+     * (NrGnbNetDevice::BuildRicIndicationMessageCuUp) so that each periodic
+     * RIC indication carries per-period counters for the UEs of one cell
+     * without wiping the statistics of UEs attached to other cells that
+     * share this calculator instance.
+     * @param imsi IMSI of the UE
+     * @param lcid LCID
+     */
+    void ResetResultsForImsiLcid(uint64_t imsi, uint8_t lcid);
+    /**
      * @return UL output file name
      */
     std::string GetUlOutputFilename();

@@ -283,6 +283,30 @@ ConnectGuiZmqBridge(const std::string& guiSrc, const std::string& guiHost)
     return client;
 }
 
+// scratch/influx_writer.py is a standalone module (stdlib-only, no
+// polyscope/GUI dependency) so it can be imported regardless of whether
+// --guiSrc is set.
+static py::object
+ConnectInfluxWriter(const std::string& influxSrc,
+                    const std::string& influxHost,
+                    uint16_t influxPort,
+                    const std::string& influxDb)
+{
+    if (influxSrc.empty())
+    {
+        return py::none();
+    }
+    py::module_ sys = py::module_::import("sys");
+    sys.attr("path").attr("insert")(0, influxSrc);
+    py::object client = py::module_::import("influx_writer").attr("InfluxWriter")(
+        py::arg("host") = influxHost,
+        py::arg("port") = influxPort,
+        py::arg("database") = influxDb);
+    client.attr("create_database")();
+    NS_LOG_UNCOND("[influx] writing KPIs to " << influxHost << ":" << influxPort << "/" << influxDb);
+    return client;
+}
+
 static void
 SendGnbPositionToGui(py::object& client, const std::string& name, const Vector& pos)
 {
@@ -317,6 +341,331 @@ SendUePositionToGui(py::object& client, const std::string& name, const Vector& p
     }
 }
 
+// color: (r,g,b) in [0,1], reusing Vector as a cheap RGB triple.
+static void
+SendColorToGui(py::object& client, const std::string& name, const Vector& color)
+{
+    if (client.is_none())
+    {
+        return;
+    }
+    try
+    {
+        client.attr("send_set_color")(name, py::make_tuple(color.x, color.y, color.z));
+    }
+    catch (const py::error_already_set& error)
+    {
+        NS_LOG_UNCOND("[gui] send_set_color failed (ignoring): " << error.what());
+    }
+}
+
+// Fixed, high-contrast palette so each gNB (and, through it, whichever UEs
+// are currently served by that gNB) gets a visually distinct color in the
+// GUI. Cycles if there are more gNBs than colors.
+static const std::vector<Vector> kCellColorPalette = {
+    Vector(0.90, 0.20, 0.20), // red
+    Vector(0.20, 0.45, 0.90), // blue
+    Vector(0.20, 0.75, 0.35), // green
+    Vector(0.95, 0.60, 0.10), // orange
+    Vector(0.65, 0.30, 0.85), // purple
+    Vector(0.20, 0.80, 0.80), // teal
+};
+
+// ---- Handover event logging ----
+//
+// NrGnbRrc::HandoverStart/HandoverEndOk fire with just (imsi, cellId, rnti[,
+// targetCellId]) -- no position -- so to see *where* the handover happened
+// we look the UE node up by IMSI in a small global map filled once at
+// mobility setup time and read its live position when the trace fires.
+// The same maps also drive the GUI's per-UE color: on every handover, the
+// UE's point is recolored to match its new serving gNB's color, so serving
+// cell is visible at a glance instead of only in the log.
+static std::map<uint64_t, Ptr<Node>> g_imsiToUeNode;
+static std::map<uint64_t, std::string> g_imsiToUeName;
+static std::map<uint16_t, Vector> g_cellIdToColor;
+static py::object* g_guiClient = nullptr; // set once in main(); nullptr if GUI disabled
+
+static void
+RecolorUeForCell(uint64_t imsi, uint16_t cellId)
+{
+    if (!g_guiClient || g_guiClient->is_none())
+    {
+        return;
+    }
+    auto nameIt = g_imsiToUeName.find(imsi);
+    auto colorIt = g_cellIdToColor.find(cellId);
+    if (nameIt == g_imsiToUeName.end() || colorIt == g_cellIdToColor.end())
+    {
+        return;
+    }
+    SendColorToGui(*g_guiClient, nameIt->second, colorIt->second);
+}
+
+// ---- InfluxDB KPI reporting ----
+//
+// Feeds the "ue_kpi"/"cell_kpi" measurements read by monitoring/grafana's
+// dashboards (see scratch/influx_writer.py for the schema). Kept entirely
+// separate from the GUI/E2 code paths above -- this just adds more
+// Config::Connect listeners on the same trace sources plus a periodic
+// poll, none of which touch the channel/PHY computation.
+static py::object* g_influxClient = nullptr; // nullptr if disabled
+
+struct UeKpiState
+{
+    std::string name;
+    std::map<uint16_t, double> rsrpDbm; //!< last RSRP per cellId (serving + neighbours)
+    Ptr<UdpServer> serverApp;
+    uint64_t lastRxPackets = 0;
+    uint32_t hoCount = 0;
+    double lastHoTime = -1e9;
+    uint16_t lastHoSource = 0;
+    uint16_t lastHoTarget = 0;
+    bool isPingPong = false;
+};
+
+static std::map<uint64_t, UeKpiState> g_ueKpi; //!< keyed by IMSI
+
+struct CellKpiState
+{
+    std::string name;
+    double txPowerDbm = 0;
+    Ptr<NetDevice> gnbDev; //!< to read the live RET tilt/bearing at report time
+    uint32_t hoInCount = 0;
+    uint32_t hoOutCount = 0;
+    uint32_t pingPongCount = 0;
+};
+
+static std::map<uint16_t, CellKpiState> g_cellKpi; //!< keyed by cellId
+
+static std::map<uint64_t, uint16_t> g_pendingHoSourceCell; //!< IMSI -> source cell of an in-flight HO
+static double g_handoverTtTMs = 0.0;
+static double g_handoverHysteresisDb = 0.0;
+static constexpr double kPingPongWindowSec = 30.0;
+
+static void
+RecordRsrpForKpi(uint64_t imsi, uint16_t cellId, uint16_t /* rnti */, NrRrcSap::MeasurementReport report)
+{
+    auto it = g_ueKpi.find(imsi);
+    if (it == g_ueKpi.end())
+    {
+        return;
+    }
+    it->second.rsrpDbm[cellId] =
+        static_cast<double>(report.measResults.measResultPCell.rsrpResult) - 140.0;
+    if (report.measResults.haveMeasResultNeighCells)
+    {
+        for (const auto& neigh : report.measResults.measResultListEutra)
+        {
+            if (neigh.haveRsrpResult)
+            {
+                it->second.rsrpDbm[neigh.physCellId] =
+                    static_cast<double>(neigh.rsrpResult) - 140.0;
+            }
+        }
+    }
+}
+
+static void
+ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
+{
+    if (!g_influxClient || g_influxClient->is_none())
+    {
+        return;
+    }
+
+    std::map<uint16_t, uint32_t> cellUeCount;
+    std::map<uint16_t, double> cellRsrpSum;
+    std::map<uint16_t, double> cellThroughputSum;
+
+    for (uint32_t i = 0; i < ueNetDev.GetN(); ++i)
+    {
+        auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
+        uint64_t imsi = ueDev->GetImsi();
+        auto it = g_ueKpi.find(imsi);
+        if (it == g_ueKpi.end())
+        {
+            continue;
+        }
+        UeKpiState& ue = it->second;
+        uint16_t servingCellId = ueDev->GetCellId();
+
+        double throughputMbps = 0.0;
+        if (ue.serverApp)
+        {
+            uint64_t rx = ue.serverApp->GetReceived();
+            uint64_t deltaPackets = (rx >= ue.lastRxPackets) ? (rx - ue.lastRxPackets) : 0;
+            ue.lastRxPackets = rx;
+            // PacketSize is fixed at 1024 bytes on the UdpClient below.
+            throughputMbps = (deltaPackets * 1024.0 * 8.0) / (intervalSec * 1e6);
+        }
+
+        double rsrpServing = 0.0;
+        if (auto rIt = ue.rsrpDbm.find(servingCellId); rIt != ue.rsrpDbm.end())
+        {
+            rsrpServing = rIt->second;
+        }
+
+        std::string bestNeighborName;
+        double bestNeighborRsrp = -140.0;
+        for (const auto& cellRsrp : ue.rsrpDbm)
+        {
+            if (cellRsrp.first == servingCellId)
+            {
+                continue;
+            }
+            if (cellRsrp.second > bestNeighborRsrp)
+            {
+                bestNeighborRsrp = cellRsrp.second;
+                bestNeighborName.clear();
+                if (auto cnIt = g_cellKpi.find(cellRsrp.first); cnIt != g_cellKpi.end())
+                {
+                    bestNeighborName = cnIt->second.name;
+                }
+            }
+        }
+
+        std::string servingCellName;
+        if (auto cIt = g_cellKpi.find(servingCellId); cIt != g_cellKpi.end())
+        {
+            servingCellName = cIt->second.name;
+        }
+
+        double secondsSinceHo =
+            (ue.hoCount > 0) ? (Simulator::Now().GetSeconds() - ue.lastHoTime) : -1.0;
+
+        try
+        {
+            g_influxClient->attr("write_ue_kpi")(ue.name,
+                                                 servingCellName,
+                                                 rsrpServing,
+                                                 bestNeighborName,
+                                                 bestNeighborRsrp,
+                                                 throughputMbps,
+                                                 ue.hoCount,
+                                                 secondsSinceHo,
+                                                 ue.isPingPong);
+        }
+        catch (const py::error_already_set& error)
+        {
+            NS_LOG_UNCOND("[influx] write_ue_kpi failed (ignoring): " << error.what());
+        }
+
+        cellUeCount[servingCellId]++;
+        cellRsrpSum[servingCellId] += rsrpServing;
+        cellThroughputSum[servingCellId] += throughputMbps;
+    }
+
+    for (auto& cellEntry : g_cellKpi)
+    {
+        uint16_t cellId = cellEntry.first;
+        CellKpiState& cell = cellEntry.second;
+        uint32_t numUes = cellUeCount.count(cellId) ? cellUeCount[cellId] : 0;
+        double avgRsrp = (numUes > 0) ? (cellRsrpSum[cellId] / numUes) : 0.0;
+        double aggThroughput = cellThroughputSum.count(cellId) ? cellThroughputSum[cellId] : 0.0;
+
+        double retTiltDeg = 0.0;
+        double retBearingDeg = 0.0;
+        if (cell.gnbDev)
+        {
+            Ptr<UniformPlanarArray> antenna = DynamicCast<UniformPlanarArray>(
+                NrHelper::GetGnbPhy(cell.gnbDev, 0)->GetSpectrumPhy()->GetAntenna());
+            if (antenna)
+            {
+                DoubleValue tiltVal;
+                antenna->GetAttribute("DowntiltAngle", tiltVal);
+                retTiltDeg = tiltVal.Get() * 180.0 / M_PI;
+                DoubleValue bearingVal;
+                antenna->GetAttribute("BearingAngle", bearingVal);
+                retBearingDeg = bearingVal.Get() * 180.0 / M_PI;
+            }
+        }
+
+        try
+        {
+            g_influxClient->attr("write_cell_kpi")(cell.name,
+                                                   cell.txPowerDbm,
+                                                   retTiltDeg,
+                                                   retBearingDeg,
+                                                   g_handoverTtTMs,
+                                                   g_handoverHysteresisDb,
+                                                   static_cast<int>(numUes),
+                                                   avgRsrp,
+                                                   cell.hoInCount,
+                                                   cell.hoOutCount,
+                                                   cell.pingPongCount,
+                                                   aggThroughput);
+        }
+        catch (const py::error_already_set& error)
+        {
+            NS_LOG_UNCOND("[influx] write_cell_kpi failed (ignoring): " << error.what());
+        }
+    }
+
+    Simulator::Schedule(Seconds(intervalSec), &ReportKpiToInflux, ueNetDev, intervalSec);
+}
+
+static void
+LogHandoverStart(uint64_t imsi, uint16_t sourceCellId, uint16_t rnti, uint16_t targetCellId)
+{
+    g_pendingHoSourceCell[imsi] = sourceCellId;
+    Vector pos(0, 0, 0);
+    if (auto it = g_imsiToUeNode.find(imsi); it != g_imsiToUeNode.end())
+    {
+        pos = it->second->GetObject<MobilityModel>()->GetPosition();
+    }
+    NS_LOG_UNCOND("[HO] t=" << Simulator::Now().GetSeconds() << "s START imsi=" << imsi
+                            << " rnti=" << rnti << " " << sourceCellId << " -> " << targetCellId
+                            << " ue_pos=(" << pos.x << "," << pos.y << "," << pos.z << ")");
+}
+
+static void
+LogHandoverEndOk(uint64_t imsi, uint16_t cellId, uint16_t rnti)
+{
+    RecolorUeForCell(imsi, cellId);
+
+    uint16_t sourceCellId = 0;
+    if (auto it = g_pendingHoSourceCell.find(imsi); it != g_pendingHoSourceCell.end())
+    {
+        sourceCellId = it->second;
+        g_pendingHoSourceCell.erase(it);
+    }
+    if (auto ueIt = g_ueKpi.find(imsi); ueIt != g_ueKpi.end())
+    {
+        UeKpiState& ue = ueIt->second;
+        double now = Simulator::Now().GetSeconds();
+        // Ping-pong: this handover reverses the immediately preceding one
+        // (B->A right after A->B) within a short window.
+        ue.isPingPong = (ue.hoCount > 0) && (sourceCellId == ue.lastHoTarget) &&
+                        (cellId == ue.lastHoSource) && (now - ue.lastHoTime) < kPingPongWindowSec;
+        ue.hoCount++;
+        ue.lastHoTime = now;
+        ue.lastHoSource = sourceCellId;
+        ue.lastHoTarget = cellId;
+
+        if (auto srcCellIt = g_cellKpi.find(sourceCellId); srcCellIt != g_cellKpi.end())
+        {
+            srcCellIt->second.hoOutCount++;
+            if (ue.isPingPong)
+            {
+                srcCellIt->second.pingPongCount++;
+            }
+        }
+        if (auto dstCellIt = g_cellKpi.find(cellId); dstCellIt != g_cellKpi.end())
+        {
+            dstCellIt->second.hoInCount++;
+        }
+    }
+
+    Vector pos(0, 0, 0);
+    if (auto it = g_imsiToUeNode.find(imsi); it != g_imsiToUeNode.end())
+    {
+        pos = it->second->GetObject<MobilityModel>()->GetPosition();
+    }
+    NS_LOG_UNCOND("[HO] t=" << Simulator::Now().GetSeconds() << "s END_OK imsi=" << imsi
+                            << " rnti=" << rnti << " now_serving_cell=" << cellId << " ue_pos=("
+                            << pos.x << "," << pos.y << "," << pos.z << ")");
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -346,6 +695,17 @@ main(int argc, char* argv[])
 
     std::string guiSrc;               // empty = GUI bridge disabled
     std::string guiHost = "localhost";
+
+    std::string influxSrc;            // empty = InfluxDB KPI reporting disabled
+    std::string influxHost = "localhost";
+    uint16_t influxPort = 8086;
+    std::string influxDb = "nr_kpi";
+    double kpiReportInterval = 1.0;
+
+    // Applied explicitly here (rather than left to --ns3::NrA3RsrpHandoverAlgorithm::*)
+    // so the cell_kpi dashboard always shows the value actually in effect.
+    double handoverTtTMs = 256.0;
+    double handoverHysteresisDb = 3.0;
 
     SionnaRtChannelModel::RtPathSolverConfig RtPathSolverConfig;
     RtPathSolverConfig.maxDepth = 3;
@@ -382,13 +742,30 @@ main(int argc, char* argv[])
                  "Path to ns-O-RAN-flexric's contrib/sionna/gui/src (empty disables the GUI bridge)",
                  guiSrc);
     cmd.AddValue("guiHost", "Polyscope GUI ZMQ bridge host", guiHost);
+    cmd.AddValue("influxSrc",
+                 "Path to the directory containing influx_writer.py (empty disables "
+                 "InfluxDB KPI reporting)",
+                 influxSrc);
+    cmd.AddValue("influxHost", "InfluxDB host", influxHost);
+    cmd.AddValue("influxPort", "InfluxDB HTTP port", influxPort);
+    cmd.AddValue("influxDb", "InfluxDB database name", influxDb);
+    cmd.AddValue("kpiReportInterval", "Seconds between KPI reports to InfluxDB", kpiReportInterval);
+    cmd.AddValue("handoverTtt", "Handover time-to-trigger (ms)", handoverTtTMs);
+    cmd.AddValue("handoverHysteresis", "Handover hysteresis (dB)", handoverHysteresisDb);
     cmd.Parse(argc, argv);
+
+    g_handoverTtTMs = handoverTtTMs;
+    g_handoverHysteresisDb = handoverHysteresisDb;
 
     NS_ABORT_IF(centralFrequencyBand1 < 0.5e9 && centralFrequencyBand1 > 100e9);
 
     Config::SetDefault("ns3::NrRlcUm::MaxTxBufferSize", UintegerValue(999999999));
 
     py::object guiClient = ConnectGuiZmqBridge(guiSrc, guiHost);
+    g_guiClient = &guiClient;
+
+    py::object influxClient = ConnectInfluxWriter(influxSrc, influxHost, influxPort, influxDb);
+    g_influxClient = &influxClient;
 
     std::vector<UeTrace> ueTraces = LoadUeTrace(sumoTracePath, nUes);
     std::vector<GnbPosition> gnbPositions = LoadGnbPositions(gnbPositionsPath);
@@ -409,6 +786,15 @@ main(int argc, char* argv[])
                               << gnbPositions[i].position.x << "," << gnbPositions[i].position.y
                               << "," << gnbPositions[i].position.z << ")");
         SendGnbPositionToGui(guiClient, gnbPositions[i].externalId, gnbPositions[i].position);
+
+        // NR assigns cellId = (gNB index * componentCarriers) + ccIndex + 1;
+        // with one CC per gNB here, that's simply i+1. Record the color now
+        // so UEs can be recolored to match as soon as they attach/handover.
+        const uint16_t cellId = static_cast<uint16_t>(i + 1);
+        const Vector cellColor = kCellColorPalette[i % kCellColorPalette.size()];
+        g_cellIdToColor[cellId] = cellColor;
+        SendColorToGui(guiClient, gnbPositions[i].externalId, cellColor);
+        g_cellKpi[cellId].name = gnbPositions[i].externalId;
     }
     MobilityHelper gnbMobility;
     gnbMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
@@ -513,6 +899,41 @@ main(int argc, char* argv[])
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
+    // X2 carries the actual handover signaling (HANDOVER REQUEST/ACK/etc.)
+    // between gNBs. Without this, a handover algorithm that decides to
+    // trigger a handover (e.g. --ns3::NrHelper::HandoverAlgorithm=
+    // ns3::NrA3RsrpHandoverAlgorithm) crashes on the first attempt
+    // (NrEpcX2::DoSendHandoverRequest asserts on a missing X2 socket).
+    if (gnbNodes.GetN() > 1)
+    {
+        nrHelper->AddX2Interface(gnbNodes);
+    }
+
+    // Handover event logging: map IMSI -> UE node/external-id so the trace
+    // callbacks below can report where each handover happened and recolor
+    // the right GUI point.
+    for (uint32_t i = 0; i < ueNetDev.GetN(); ++i)
+    {
+        auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
+        g_imsiToUeNode[ueDev->GetImsi()] = ueNodes.Get(i);
+        g_imsiToUeName[ueDev->GetImsi()] = ueTraces[i].externalId;
+        g_ueKpi[ueDev->GetImsi()].name = ueTraces[i].externalId;
+    }
+    Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/HandoverStart",
+                                          MakeCallback(&LogHandoverStart));
+    Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/HandoverEndOk",
+                                          MakeCallback(&LogHandoverEndOk));
+    Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/RecvMeasurementReport",
+                                          MakeCallback(&RecordRsrpForKpi));
+
+    // Applied here (rather than left to the user passing matching
+    // --ns3::NrA3RsrpHandoverAlgorithm::* flags) so cell_kpi's ttt_ms/
+    // hysteresis_db always reflect what's actually configured. Harmless
+    // no-op if HandoverAlgorithm is left at the default NrNoOpHandoverAlgorithm.
+    nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
+                                            TimeValue(MilliSeconds(handoverTtTMs)));
+    nrHelper->SetHandoverAlgorithmAttribute("Hysteresis", DoubleValue(handoverHysteresisDb));
+
     int64_t randomStream = 1;
     randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);
     nrHelper->AssignStreams(ueNetDev, randomStream);
@@ -521,9 +942,12 @@ main(int argc, char* argv[])
     {
         NrHelper::GetGnbPhy(gnbNetDev.Get(i), 0)
             ->SetAttribute("Numerology", UintegerValue(numerologyBwp1));
-        NrHelper::GetGnbPhy(gnbNetDev.Get(i), 0)
-            ->SetAttribute("TxPower",
-                          DoubleValue(10 * log10((bandwidthBand1 / totalBandwidth) * x)));
+        const double txPowerDbm = 10 * log10((bandwidthBand1 / totalBandwidth) * x);
+        NrHelper::GetGnbPhy(gnbNetDev.Get(i), 0)->SetAttribute("TxPower", DoubleValue(txPowerDbm));
+
+        const uint16_t cellId = static_cast<uint16_t>(i + 1);
+        g_cellKpi[cellId].gnbDev = gnbNetDev.Get(i);
+        g_cellKpi[cellId].txPowerDbm = txPowerDbm;
     }
 
     auto [remoteHost, remoteHostIpv4Address] =
@@ -534,6 +958,17 @@ main(int argc, char* argv[])
     Ipv4InterfaceContainer ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
     nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
 
+    // Color each UE to match its initial serving cell in the GUI. Attach is
+    // via ideal RRC signaling and isn't instantaneous, so this is scheduled
+    // for trafficStart rather than read synchronously here.
+    Simulator::Schedule(trafficStart, [ueNetDev]() {
+        for (uint32_t i = 0; i < ueNetDev.GetN(); ++i)
+        {
+            auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
+            RecolorUeForCell(ueDev->GetImsi(), ueDev->GetCellId());
+        }
+    });
+
     // Single downlink UDP flow per UE, matching scenario-zero-sionna-kyunghee.cc,
     // gated by the trace's active/inactive windows.
     uint16_t dlPort = 1234;
@@ -541,6 +976,11 @@ main(int argc, char* argv[])
     ApplicationContainer clientApps;
     UdpServerHelper dlPacketSink(dlPort);
     serverApps.Add(dlPacketSink.Install(ueNodes));
+    for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
+    {
+        auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(u));
+        g_ueKpi[ueDev->GetImsi()].serverApp = DynamicCast<UdpServer>(serverApps.Get(u));
+    }
 
     NrQosFlow dlFlow(NrQosFlow::NGBR_LOW_LAT_EMBB);
     Ptr<NrQosRule> dlRule = Create<NrQosRule>();
@@ -602,6 +1042,11 @@ main(int argc, char* argv[])
     }
     serverApps.Start(trafficStart);
     serverApps.Stop(simTime);
+
+    if (!influxClient.is_none())
+    {
+        Simulator::Schedule(trafficStart, &ReportKpiToInflux, ueNetDev, kpiReportInterval);
+    }
 
     FlowMonitorHelper flowmonHelper;
     NodeContainer endpointNodes;

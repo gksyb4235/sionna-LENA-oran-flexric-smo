@@ -28,6 +28,14 @@
 
 namespace ns3 {
 
+TypeId
+MmWaveIndicationMessageHelper::GetTypeId ()
+{
+  static TypeId tid =
+      TypeId ("ns3::MmWaveIndicationMessageHelper").SetParent<IndicationMessageHelper> ();
+  return tid;
+}
+
 MmWaveIndicationMessageHelper::MmWaveIndicationMessageHelper (IndicationMessageType type,
                                                               bool isOffline, bool reducedPmValues)
     : IndicationMessageHelper (type, isOffline, reducedPmValues)

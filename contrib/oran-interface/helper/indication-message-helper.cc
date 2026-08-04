@@ -26,6 +26,13 @@
 
 namespace ns3 {
 
+TypeId
+IndicationMessageHelper::GetTypeId ()
+{
+  static TypeId tid = TypeId ("ns3::IndicationMessageHelper").SetParent<Object> ();
+  return tid;
+}
+
 IndicationMessageHelper::IndicationMessageHelper (IndicationMessageType type, bool isOffline,
                                                   bool reducedPmValues)
     : m_type (type), m_offline (isOffline), m_reducedPmValues (reducedPmValues)

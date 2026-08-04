@@ -421,6 +421,14 @@ class ZMQBridgeClient:
             "num_v": num_v,
         })
 
+    def send_set_color(self, name: str, color: list) -> bool:
+        """color: [r, g, b], each 0..1."""
+        return self._send_cmd({
+            "type": "set_color",
+            "name": name,
+            "color": color,
+        })
+
     def send_trajectory(self, name: str, waypoints: list,
                         velocity: float = 1.11) -> bool:
         return self._send_cmd({

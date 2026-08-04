@@ -58,11 +58,41 @@ def main():
             "for visualization, not a second authoritative RT computation."
         ),
     )
+    parser.add_argument(
+        "--live-radio-map",
+        action="store_true",
+        default=False,
+        help=(
+            "Let the GUI auto-refine its radio map heatmap every frame "
+            "(RadioMapConfig.auto_update). Off by default for the same "
+            "reason as --live-paths: kyunghee.yaml already disables this "
+            "for performance, but this script's default config (base.yaml) "
+            "never got that tuning, so a radio map computed here (manually, "
+            "or via a gnb_antenna/RET update while one is already shown) "
+            "re-accumulates at the untuned default of 1e8 samples/frame -- "
+            "observed to drop frame time to ~7s under live position/color "
+            "updates."
+        ),
+    )
+    parser.add_argument(
+        "--radio-map-log-samples-per-it",
+        type=float,
+        default=3.0,
+        help=(
+            "log10(samples per radio map refinement iteration). Only "
+            "matters once a radio map exists (manual trigger, or "
+            "--live-radio-map). Default 3.0 (1e3 samples/it) keeps that "
+            "cheap; the underlying default is 8.0 (1e8), matching "
+            "kyunghee.yaml's tuned value of 6.0 (1e6) or lower."
+        ),
+    )
     args = parser.parse_args()
 
     cfg_overrides = {
         "use_live_reload": args.watch,
         "paths.auto_update": args.live_paths,
+        "radio_map.auto_update": args.live_radio_map,
+        "radio_map.log_samples_per_it": args.radio_map_log_samples_per_it,
     }
     cfg = load_config(args.config, scene_filename=args.scene)
 

@@ -990,6 +990,18 @@ KpmIndicationMessage::FillKpmIndicationMessageFormat1 (
       MeasurementInfoItem_t *infoItem = _pairInfo.first;
       MeasurementDataItem_t *measureDataItem = _pairInfo.second;
 
+      // getMesInfoItem returns a null data item when the measurement carries
+      // no encodable value (e.g. an L3 RRC measurement with an empty
+      // serving/neighbour list). ASN_SEQUENCE_ADD would happily store the
+      // NULL, and the APER encoder then corrupts the heap when it walks the
+      // list. Skip such items entirely (data and info entries must stay
+      // aligned, so drop both).
+      if (measureDataItem == nullptr)
+        {
+          NS_LOG_INFO ("Skipping measurement item with no encodable value");
+          ASN_STRUCT_FREE (asn_DEF_MeasurementInfoItem, infoItem);
+          continue;
+        }
       ASN_SEQUENCE_ADD (&measurementDataList->list, measureDataItem);
       ASN_SEQUENCE_ADD (&infoList->list, infoItem);
     }

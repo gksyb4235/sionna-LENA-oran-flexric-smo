@@ -8,6 +8,7 @@
 #include "nr-fh-control.h"
 #include "nr-handover-algorithm.h"
 #include "nr-net-device.h"
+#include "nr-rrc-sap.h"
 
 #include "ns3/deprecated.h"
 #include "ns3/nr-export.h"
@@ -27,6 +28,7 @@ class BandwidthPartGnb;
 class NrGnbComponentCarrierManager;
 class BwpManagerGnb;
 class NrMacScheduler;
+class NrBearerStatsCalculator;
 
 /**
  * @ingroup gnb
@@ -197,6 +199,39 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
     void KpmSubscriptionCallback(E2AP_PDU_t* sub_req_pdu);
     void ControlMessageReceivedCallback(E2AP_PDU_t* sub_req_pdu);
     void stopSendingAndCancelSchedule();
+
+    /**
+     * Build one round of KPM indication messages (CU-UP and CU-CP) and send
+     * them to the RIC through the E2 termination, then reschedule itself
+     * after E2Periodicity seconds for as long as the subscription is alive.
+     * Ported from ns3-o-ran-e2's MmWaveEnbNetDevice::BuildAndSendReportMessage.
+     *
+     * @param params the RIC subscription identifiers to echo in the indication
+     */
+    void BuildAndSendReportMessage(E2Termination::RicSubscriptionRequest_rval_s params);
+
+    /**
+     * Callback for NrGnbRrc's "RecvMeasurementReport" trace source, connected
+     * to every gNB's RRC in DoInitialize when E2/CU-CP reporting is enabled.
+     * Records the serving-cell and neighbour-cell RSRP (there is no L3 SINR
+     * in the standard 3GPP RRC measurement report the way the legacy
+     * mmwave+LteEnbRrc dual-connectivity architecture exposed one directly)
+     * for later use in BuildRicIndicationMessageCuCp. Only fires for UEs
+     * whose measurement configuration was actually set up -- e.g. by
+     * installing an RSRP-based handover algorithm via
+     * NrHelper::SetHandoverAlgorithmType (the default NrNoOpHandoverAlgorithm
+     * configures no measurements at all).
+     *
+     * @param imsi the reporting UE's IMSI
+     * @param cellId the cell the report was received on
+     * @param rnti the reporting UE's RNTI
+     * @param report the decoded RRC measurement report
+     */
+    void RecvMeasurementReport(uint64_t imsi,
+                              uint16_t cellId,
+                              uint16_t rnti,
+                              NrRrcSap::MeasurementReport report);
+
     bool m_forceE2FileLogging;
 
   protected:
@@ -206,6 +241,41 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
     bool DoSend(Ptr<Packet> packet, const Address& dest, uint16_t protocolNumber) override;
 
   private:
+    /**
+     * Build the E2SM-KPM indication header (PLMN, gNB id, cell id, timestamp).
+     * @return the encoded header, or nullptr when offline file logging is on
+     */
+    Ptr<KpmIndicationHeader> BuildRicIndicationHeader(std::string plmId,
+                                                      std::string gnbId,
+                                                      uint16_t nrCellId);
+    /**
+     * Build the CU-UP indication message: per-UE PDCP/RLC downlink volume and
+     * PDU counts read from the E2PdcpCalculator/E2RlcCalculator attributes.
+     * @return the encoded message, or nullptr if stats calculators are absent
+     */
+    Ptr<KpmIndicationMessage> BuildRicIndicationMessageCuUp(std::string plmId);
+    /**
+     * Build the CU-CP indication message: number of active UEs and per-UE DRB
+     * counts. L3 serving/neighbour SINR values are not plumbed from the NR RRC
+     * measurement path yet and are reported as 0.
+     * @return the encoded message
+     */
+    Ptr<KpmIndicationMessage> BuildRicIndicationMessageCuCp(std::string plmId);
+    /**
+     * Zero-pad an IMSI to the 5-character string format the E2SM-KPM UE id
+     * field expects.
+     * @return the padded IMSI string
+     */
+    static std::string GetImsiString(uint64_t imsi);
+    /**
+     * Apply a RET (Remote Electrical Tilt) control decision to every BWP
+     * antenna of this cell by setting the UniformPlanarArray BearingAngle /
+     * DowntiltAngle attributes. With the Sionna RT channel model these
+     * orientations are forwarded to the ray tracer on the next channel
+     * update, so the tilt has a real propagation effect.
+     */
+    void ApplyRetControl(double tiltDeg, bool hasBearing, double bearingDeg);
+
     Ptr<NrGnbRrc> m_rrc;
     Ptr<NrHandoverAlgorithm> m_handoverAlgorithm; ///< the handover algorithm
 
@@ -220,10 +290,26 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
     bool m_isCellConfigured{false}; ///< variable to check whether the RRC has been configured
 
     Ptr<E2Termination> m_e2term;
+    Ptr<NrBearerStatsCalculator> m_e2PdcpStatsCalculator; //!< PDCP stats source for KPM reports
+    Ptr<NrBearerStatsCalculator> m_e2RlcStatsCalculator;  //!< RLC stats source for KPM reports
     double rc_e2_func_id;  //!< RC function ID
     double e2_func_id;     //!< KPM function ID
+    double m_e2Periodicity; //!< KPM indication period in seconds
+    bool m_sendCuUp;        //!< send the CU-UP indication message
+    bool m_sendCuCp;        //!< send the CU-CP indication message
+    bool m_reducedPmValues; //!< use the reduced PM value set in indications
     bool m_stopSendingMessages;
     bool m_isReportingEnabled;
+    bool m_hasValidSubscription{false}; //!< a RIC subscription has been processed
+    E2Termination::RicSubscriptionRequest_rval_s
+        m_lastSubscriptionParams; //!< identifiers of the last RIC subscription
+    uint64_t m_startTime{0};      //!< epoch offset (ms) added to indication timestamps
+    /**
+     * Last-known RSRP (dBm) per (IMSI, cellId) from RRC measurement reports,
+     * covering both the serving cell and any reported neighbours. Populated
+     * by RecvMeasurementReport, consumed by BuildRicIndicationMessageCuCp.
+     */
+    std::map<uint64_t, std::map<uint16_t, double>> m_l3RsrpDbmMap;
 };
 
 } // namespace ns3

@@ -1,0 +1,34 @@
+version: '3.8'
+
+# InfluxDB + Grafana only -- no orchestration/SSH service like the old
+# ns-O-RAN-flexric/mmwave-LENA-oran/GUI/docker-compose.yml, since this
+# project's ns-3 process runs locally and pushes KPI data directly (see
+# scratch/influx_writer.py) rather than being remote-controlled over SSH.
+#
+# Reuses the same images/ports/provisioning pattern as that older stack so
+# muscle memory (and the influx line-protocol schema) carries over.
+
+services:
+  influxdb:
+    image: influxdb:1.8-alpine
+    env_file: configuration.env
+    ports:
+      - '127.0.0.1:8086:8086'
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    depends_on:
+      - influxdb
+    env_file: configuration.env
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+
+volumes:
+  influxdb_data: {}
+  grafana_data: {}

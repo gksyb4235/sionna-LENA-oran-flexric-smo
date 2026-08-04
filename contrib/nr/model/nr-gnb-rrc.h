@@ -370,6 +370,19 @@ class NR_EXPORT NrUeManager : public Object
     uint64_t GetImsi() const;
 
     /**
+     * Read-only access to this UE's data-radio-bearer map, keyed by DRB id.
+     * Exposed for the E2/KPM reporting path (NrGnbNetDevice), which needs
+     * the per-UE DRB count and each bearer's logical channel identity to
+     * look up per-LCID PDCP/RLC statistics.
+     *
+     * @return const reference to the DRB id -> NrDataRadioBearerInfo map
+     */
+    const std::map<uint8_t, Ptr<NrDataRadioBearerInfo>>& GetDrbMap() const
+    {
+        return m_drbMap;
+    }
+
+    /**
      *
      * @return the primary component carrier ID
      */

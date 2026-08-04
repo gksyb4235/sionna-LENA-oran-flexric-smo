@@ -29,6 +29,8 @@ zmq_bridge.py
   gNB RET/안테나 상태 (ns3sionna_server.py의 node_antenna와 동일 규약):
     {"type": "gnb_antenna", "name": "gnb1", "bearing_deg": 90.0,
      "tilt_deg": 12.0, "num_v": 8}
+  객체 색상 (서빙 셀 등에 따라 UE/gNB 포인트 색을 바꿀 때):
+    {"type": "set_color", "name": "ue1", "color": [r, g, b]}  # 0..1 float RGB
 """
 
 import json
@@ -201,6 +203,28 @@ class ZMQBridge:
             gui.set_gnb_antenna_state(
                 msg["name"], msg["bearing_deg"], msg["tilt_deg"], int(msg["num_v"])
             )
+
+        elif t == "set_color":
+            # 서빙 셀 변경(핸드오버) 등에 따라 UE/gNB 포인트 색을 바꾼다.
+            # 위치와 달리 매 tick 오지 않으므로, 다음 위치 갱신을 기다리지
+            # 않고 즉시 다시 그린다.
+            name = msg["name"]
+            color = tuple(msg["color"])
+            try:
+                obj = gui.scene.get(name)
+            except Exception:
+                obj = None
+            if obj is not None:
+                obj.color = color
+                is_tx = name in gui.scene._transmitters
+                from .sionna_utils import set_or_update_radio_devices_polyscope
+                set_or_update_radio_devices_polyscope(
+                    gui.scene.transmitters if is_tx else gui.scene.receivers,
+                    is_transmitter=is_tx,
+                    gui=gui,
+                )
+            else:
+                print(f"[ZMQBridge] set_color: 알 수 없는 객체 '{name}' (무시)")
 
         elif t == "trajectory":
             # 궤적 전체를 animation_config에 등록
@@ -403,6 +427,14 @@ class ZMQBridgeClient:
             "bearing_deg": bearing_deg,
             "tilt_deg": tilt_deg,
             "num_v": num_v,
+        })
+
+    def send_set_color(self, name: str, color: list) -> bool:
+        """color: [r, g, b], each 0..1."""
+        return self._send_cmd({
+            "type": "set_color",
+            "name": name,
+            "color": color,
         })
 
     def send_trajectory(self, name: str, waypoints: list,
