@@ -151,14 +151,16 @@ docker run --rm hello-world
 
 ```bash
 export REPO_ROOT="$HOME/LENA-oran-flexric-smo"
-export DEPS_ROOT="$HOME/ns-O-RAN-flexric"
+export DEPS_ROOT="$HOME/LENA-oran-flexric-smo-deps"
 export FLEXRIC_ROOT="$DEPS_ROOT/flexric"
 
 git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git "$REPO_ROOT"
 mkdir -p "$DEPS_ROOT"
 ```
 
-새 터미널에서도 편하게 쓰려면 위 세 `export`를 `~/.bashrc`에 추가합니다.
+`REPO_ROOT`는 이 프로젝트이고, `DEPS_ROOT`는 Git에 포함되지 않는 e2sim/FlexRIC
+외부 소스 전용 디렉터리입니다. 새 터미널에서도 편하게 쓰려면 위 세 `export`를
+`~/.bashrc`에 추가합니다.
 
 ### 4. e2sim 빌드 및 설치
 
