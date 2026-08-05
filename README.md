@@ -13,170 +13,263 @@ See the LICENSE file for more details.
 
 ## sionna-LENA-oran-flexric-smo (this fork)
 
-> Everything in this section is specific to this project. The rest of the
-> README (starting at [Overview](#overview-an-open-source-project) below) is
-> the stock upstream ns-3 documentation, kept as-is for reference.
+> 이 절은 이 저장소 전용 문서입니다. 아래 [Overview](#overview-an-open-source-project)부터는
+> 원본 ns-3 문서입니다.
 
-### What this is
+이 저장소는 ns-3.48, 5G-LENA NR, Sionna RT 2.0.1, O-RAN E2,
+Polyscope GUI, InfluxDB/Grafana를 결합한 KHU 캠퍼스 이동 UE 시뮬레이터입니다.
+Sionna RT는 별도 서버가 아니라 pybind11을 통해 ns-3 프로세스 안에서 실행됩니다.
+현재 `scratch/khu-real-nr-sionna.cc`에서 GUI, E2 접속, KPI 저장,
+A3 RSRP handover 및 TTT/HYS sweep을 함께 사용할 수 있습니다.
 
-NR-based rebuild of `ns-O-RAN-flexric` (a sibling local project, at
-`/home/user/ns-O-RAN-flexric`) on top of
-**ns-3.48**, which is the first ns-3 release with an **official, upstream
-Sionna RT channel model** (`src/spectrum/model/sionna-rt-channel-model.*`,
-merged via GitLab MR `!2608`), plus the [`nr`](https://github.com/cttc-lena/nr)
-module at branch `5g-lena-v5.0.y`, which already ships
-`NrChannelHelper::ChannelModel::SionnaRT` and an example
-(`contrib/nr/examples/cttc-nr-demo-sionna-rt.cc`) wiring the two together.
+### 재현 범위와 고정 버전
 
-The old project (`ns-O-RAN-flexric`) used the legacy `mmwave` module plus a
-hand-rolled ZMQ/protobuf bridge to a separate Sionna Python server process.
-Here, Sionna RT runs **embedded inside the ns-3 process itself** via
-pybind11 (`py::scoped_interpreter`) — no separate server, no network
-protocol for the channel path. On top of that NR+Sionna base, this fork
-adds back everything the old project had:
+검증 기준은 Ubuntu 24.04 WSL2, Python 3.12, GCC 13입니다. RTX 4090과
+RTX 5090은 같은 소스와 Python 환경을 사용합니다. GPU에 따라 실행 시간은 달라지며,
+부동소수점/JIT 연산 차이로 임계점 근처의 handover 시각이 완전히 bit-identical하다고
+보장할 수는 없습니다. 논문용 결과에는 `git rev-parse HEAD`, `nvidia-smi`,
+`python -m pip freeze`와 원본 로그를 같이 보관하십시오.
 
-- The real KHU campus scene and workload (2 gNBs, 15 moving pedestrians),
-  ported from `ns-O-RAN-flexric`'s CSV-driven scenario.
-- The Polyscope 3D GUI for watching gNB/UE positions live.
-- `contrib/oran-interface` (`ns3-o-ran-e2`) + a patch to `contrib/nr` wiring
-  `NrGnbNetDevice`/`NrHelper` to an `E2Termination`, so gNBs can register
-  with FlexRIC's nearRT-RIC over E2AP/E2SM, ported from the old project's
-  fork of the legacy `mmwave` module.
+| 구성 요소 | 재현 버전 |
+|---|---|
+| ns-3 | 3.48 (이 저장소에 포함) |
+| 5G-LENA / O-RAN 연동 코드 | `contrib/`에 포함 |
+| Python | 3.12 |
+| Sionna RT / Mitsuba / Dr.Jit | 2.0.1 / 3.8.0 / 1.3.1 |
+| e2sim source | Orange 통합 저장소가 고정한 `MinaYonan123/e2sim-kpmv3` commit `acf4f6b2` |
+| FlexRIC | commit `307e1d0a`, E2AP v1.01, KPM v3.00 |
+| Grafana / InfluxDB | 10.4.2 / 1.8-alpine (`monitoring/docker-compose.yml`) |
 
-**Status**: the GUI+real-workload path and the RIC/E2 handshake path have
-each been verified independently (see below), but not yet run together in
-one scenario — `scratch/khu-real-nr-sionna.cc` (the real moving-UE workload)
-doesn't set up `E2Termination` yet. Actual KPM report generation and
-RIC-Control message dispatch on the NR side are also not implemented yet
-(the old project's legacy `mmwave` net device had this; the `nr` module
-equivalent doesn't exist upstream and hasn't been written here).
+`.venv`, `build`, InfluxDB 볼륨과 Grafana 런타임 데이터는 Git에 포함되지 않습니다.
+반면 KHU XML/mesh, UE/gNB CSV, Grafana provisioning과 dashboard는 포함되어 있습니다.
+따라서 이 저장소만 내려받은 뒤 아래 외부 의존성 두 개(e2sim, FlexRIC)를 고정
+commit으로 빌드하면 동일한 기능 구성을 재현할 수 있습니다.
 
-### Layout
+### 1. Windows와 WSL2 준비
 
-```
-LENA-oran-flexric-smo/
-├── src/spectrum/model/sionna-rt-channel-model.{h,cc}  # official Sionna RT channel model
-├── contrib/
-│   ├── nr/            # 5g-lena-v5.0.y + local E2Termination/NrHelper patch, vendored directly
-│   └── oran-interface/  # ns3-o-ran-e2 (E2AP/E2SM), vendored directly
-├── scratch/
-│   ├── khu-real-nr-sionna.cc  # CSV-driven real KHU workload (moving UEs, GUI bridge)
-│   └── zmq_bridge.py          # standalone ZMQ client used by khu-real-nr-sionna.cc
-├── gui/                # standalone copy of the Polyscope GUI (own venv-installable package)
-├── scenes/khu-real/    # KHU campus Sionna RT scene (XML + meshes)
-├── scenarios/khu-real/ # gNB positions + UE movement traces (CSV)
-└── .venv/              # project Python env (sionna-rt 2.0.1, gitignored)
+Windows 11 PowerShell에서 WSL을 설치/갱신하고 Ubuntu 24.04를 사용합니다.
+
+```powershell
+wsl --install -d Ubuntu-24.04
+wsl --update
 ```
 
-`contrib/nr` and `contrib/oran-interface` were originally separate git
-clones; they're vendored here as plain tracked directories (their prior
-standalone histories, including the `local/oran-e2-integration` E2 patch
-branch, are preserved outside this tree, not inside it). The `origin` remote
-points at this GitHub repo; `upstream` points at the real
-`nsnam/ns-3-dev` GitLab repo this fork started from.
+Windows 쪽 NVIDIA Game Ready 또는 Studio 드라이버를 최신 버전으로 설치하십시오.
+WSL에는 `nvidia-driver-*`나 Linux display driver를 설치하지 않습니다. Windows
+드라이버가 CUDA를 WSL로 전달합니다. 이 프로젝트는 CUDA 소스를 컴파일하지 않으므로
+별도 CUDA Toolkit (`nvcc`)도 필수 사항이 아닙니다. 자세한 내용은
+[NVIDIA CUDA on WSL 공식 가이드](https://docs.nvidia.com/cuda/wsl-user-guide/index.html)를
+참조하십시오.
 
-### Prerequisites
+WSL 터미널에서 먼저 GPU가 보이는지 확인합니다.
 
 ```bash
-cd /home/user/LENA-oran-flexric-smo
-python3 -m venv .venv
+nvidia-smi
+```
+
+GUI는 Windows 11의 WSLg를 사용합니다. `echo "$DISPLAY"`가 비어 있으면 WSL을
+업데이트한 뒤 `wsl --shutdown`하고 다시 시작하십시오.
+
+### 2. Ubuntu 패키지 설치
+
+아래 목록은 [ns-3 공식 prerequisite](https://www.nsnam.org/docs/installation/html/system.html)와
+e2sim/FlexRIC 빌드 의존성을 합친 것입니다.
+
+```bash
+sudo apt update
+sudo apt install -y \
+  build-essential gcc-13 g++-13 cmake cmake-curses-gui ninja-build ccache \
+  git pkg-config python3.12 python3.12-dev python3.12-venv \
+  libboost-all-dev libgsl-dev libgtk-3-dev libpcre2-dev \
+  libsctp-dev lksctp-tools libsqlite3-dev libxml2-dev \
+  autoconf automake libtool bison flex
+```
+
+Docker는 Windows Docker Desktop의 WSL integration을 권장합니다. 설치 후 WSL에서
+다음 두 명령이 모두 성공해야 합니다.
+
+```bash
+docker version
+docker compose version
+```
+
+### 3. 소스 내려받기
+
+경로는 자유롭습니다. 이후 명령은 다음 변수를 사용하므로 `/home/user`라는 계정명이
+아니어도 됩니다.
+
+```bash
+export REPO_ROOT="$HOME/LENA-oran-flexric-smo"
+export DEPS_ROOT="$HOME/ns-O-RAN-flexric"
+export FLEXRIC_ROOT="$DEPS_ROOT/flexric"
+
+git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git "$REPO_ROOT"
+mkdir -p "$DEPS_ROOT"
+```
+
+새 터미널에서도 편하게 쓰려면 위 세 `export`를 `~/.bashrc`에 추가합니다.
+
+### 4. e2sim 빌드 및 설치
+
+ns-3의 `contrib/oran-interface`는 `/usr/local/include/e2sim`과
+`/usr/local/lib/libe2sim.a`를 링크하므로 ns-3보다 먼저 설치해야 합니다.
+
+```bash
+git clone https://github.com/MinaYonan123/e2sim-kpmv3.git \
+  "$DEPS_ROOT/e2sim-kpmv3"
+git -C "$DEPS_ROOT/e2sim-kpmv3" checkout --detach \
+  acf4f6b2baa8c645af566ea210146abd97de1f48
+
+cd "$DEPS_ROOT/e2sim-kpmv3/e2sim"
+mkdir -p build
+./build_e2sim.sh 2
+```
+
+설치 확인:
+
+```bash
+test -f /usr/local/lib/libe2sim.a
+test -d /usr/local/include/e2sim
+```
+
+### 5. FlexRIC nearRT-RIC 빌드 및 설치
+
+e2sim과 프로토콜 버전을 맞추기 위해 반드시 E2AP v1.01, KPM v3.00으로 구성합니다.
+아래 commit은 현재 검증된 nearRT-RIC 코어와 동일합니다. 로컬 RET xApp 개발분은
+nearRT-RIC 실행에 필요하지 않습니다.
+
+```bash
+git clone https://gitlab.eurecom.fr/mosaic5g/flexric.git "$FLEXRIC_ROOT"
+git -C "$FLEXRIC_ROOT" checkout --detach \
+  307e1d0a5c26751c9e5595805b668a4f91d09550
+
+cmake -S "$FLEXRIC_ROOT" -B "$FLEXRIC_ROOT/build" \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DE2AP_VERSION=E2AP_V1 \
+  -DKPM_VERSION=KPM_V3_00 \
+  -DXAPP_MULTILANGUAGE=OFF
+cmake --build "$FLEXRIC_ROOT/build" -j"$(nproc)"
+sudo cmake --install "$FLEXRIC_ROOT/build"
+sudo ldconfig
+```
+
+설치 후 `/usr/local/etc/flexric/flexric.conf`의 `NEAR_RIC_IP`가
+`127.0.0.1`인지 확인합니다. RIC를 다른 호스트에서 실행할 때만 해당 IP와 ns-3의
+`E2TermIp`를 함께 변경합니다.
+
+### 6. Python 가상환경과 ns-3 빌드
+
+Sionna 공식 문서도 Python 가상환경 사용을 권장합니다. 이 저장소는
+[Sionna RT 2.0.1](https://nvlabs.github.io/sionna/installation.html)의 알려진 정상
+조합을 `requirements.txt`에 고정합니다.
+
+```bash
+cd "$REPO_ROOT"
+python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r gui/requirements.txt   # sionna-rt, polyscope, matplotlib, omegaconf, etc.
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+python scripts/check_environment.py --require-gpu --require-e2
+
 ./ns3 configure --enable-examples --enable-tests --enable-python-bindings
-./ns3 build
-```
-Look for `Sionna-RT support enabled: all required dependencies were found.`
-in the configure output. GPU acceleration (Dr.Jit/Mitsuba CUDA backend)
-works with just the NVIDIA driver — the CUDA toolkit (`nvcc`) is **not**
-required despite a cosmetic configure-time warning about it.
-
-FlexRIC's `nearRT-RIC` and the xApps are **not** vendored into this repo —
-they're reused from the old project's build:
-`/home/user/ns-O-RAN-flexric/flexric/build/examples/...`.
-
-### Running it — GUI, ns-3/Sionna RT, and the O-RAN RIC
-
-There are two independently-verified paths today; they haven't been
-combined into a single run yet.
-
-#### Path A — GUI + real KHU workload (no RIC)
-
-Terminal 1, the Polyscope GUI:
-```bash
-cd /home/user/LENA-oran-flexric-smo
-source .venv/bin/activate
-cd gui
-python scripts/run.py /home/user/LENA-oran-flexric-smo/scenes/khu-real/KHU_Cropped_Sionna_RT.xml
+./ns3 build khu-real-nr-sionna
 ```
 
-Terminal 2, the ns-3 scenario:
+configure 출력에 다음 문구가 있어야 합니다.
+
+```text
+Sionna-RT support enabled: all required dependencies were found.
+```
+
+`check_environment.py --require-gpu`가 실패하면 ns-3 빌드 문제가 아니라 Windows
+드라이버/WSL GPU 전달 문제부터 해결해야 합니다. CPU 동작만 확인할 때는
+`--require-gpu`를 생략할 수 있습니다.
+
+간단한 headless smoke test:
+
 ```bash
-cd /home/user/LENA-oran-flexric-smo
+cd "$REPO_ROOT"
 source .venv/bin/activate
 ./ns3 run --no-build "khu-real-nr-sionna \
-  --numerologyBwp1=0 --sionnaUpdatePeriod=10s --simTime=60 \
-  --guiSrc=/home/user/LENA-oran-flexric-smo/scratch --guiHost=localhost"
-```
-`--guiSrc` makes the ns-3 process itself act as the GUI's position
-publisher (via `scratch/zmq_bridge.py`, ports 5600/5601) — the role
-`kyunghee_server.py` used to play in the old project, now absorbed into
-the ns-3 process's embedded Python interpreter. Drop `--guiSrc` to run
-headless. `numerologyBwp1=0` + a 10s `sionnaUpdatePeriod` (vs. the
-defaults of `1`/50ms) cut a 180s run from ~6h42m down to ~4m29s — see
-`NR_ROADMAP.md`-equivalent notes for why (channel recompute cadence
-dominates; numerology roughly doubles/halves PHY event density on top of
-that).
-
-#### Path B — RIC/E2 handshake (official static-UE demo, no GUI/no real workload yet)
-
-Terminal 1, nearRT-RIC:
-```bash
-cd /home/user/ns-O-RAN-flexric/flexric/build/examples/ric
-./nearRT-RIC
+  --sumoTrace=scenarios/khu-real/ue-handover-1.csv \
+  --N_Ues=1 --numerologyBwp1=0 --sionnaUpdatePeriod=1s --simTime=2"
 ```
 
-Terminal 2, ns-3 with E2 enabled:
+### 7. 전체 시뮬레이션 실행
+
+먼저 Grafana/InfluxDB를 시작합니다.
+
 ```bash
-cd /home/user/LENA-oran-flexric-smo
+cd "$REPO_ROOT/monitoring"
+docker compose up -d
+```
+
+- InfluxDB: <http://localhost:8086>
+- Grafana: <http://localhost:3000> (`admin` / `admin`)
+
+터미널 1 — GUI:
+
+```bash
+cd "$REPO_ROOT/gui"
+source "$REPO_ROOT/.venv/bin/activate"
+python scripts/run.py "$REPO_ROOT/scenes/khu-real/KHU_Cropped_Sionna_RT.xml"
+```
+
+터미널 2 — nearRT-RIC:
+
+```bash
+cd "$FLEXRIC_ROOT"
+./build/examples/ric/nearRT-RIC \
+  -c /usr/local/etc/flexric/flexric.conf \
+  -p /usr/local/lib/flexric/
+```
+
+터미널 3 — UE 1대, A3 handover, GUI/E2/KPI 통합 시나리오:
+
+```bash
+cd "$REPO_ROOT"
 source .venv/bin/activate
-./ns3 run --no-build "cttc-nr-demo-sionna-rt \
-  --Scenario=/home/user/LENA-oran-flexric-smo/scenes/khu-real/KHU_Cropped_Sionna_RT.xml \
-  --gNbNum=2 --ueNumPergNb=2 --simTime=500ms \
-  --centralFrequencyBand1=3.5e9 --bandwidthBand1=20e6 \
+./build/scratch/ns3.48-khu-real-nr-sionna-default \
+  --gnbPositions=scenarios/khu-real/gnbs-ret.csv \
+  --sumoTrace=scenarios/khu-real/ue-handover-1.csv \
+  --N_Ues=1 \
+  --numerologyBwp1=0 --sionnaUpdatePeriod=1s --simTime=250 \
+  --ns3::NrHelper::HandoverAlgorithm=ns3::NrA3RsrpHandoverAlgorithm \
+  --handoverTtt=256 --handoverHysteresis=6 \
+  --guiSrc="$REPO_ROOT/scratch" --guiHost=localhost \
+  --influxSrc="$REPO_ROOT/scratch" \
+  --influxHost=localhost --influxPort=8086 --influxDb=nr_kpi \
+  --kpiReportInterval=1.0 \
   --ns3::NrHelper::E2ModeNr=true \
   --ns3::NrHelper::E2TermIp=127.0.0.1 \
-  --ns3::NrHelper::E2LocalPort=38480"
-```
-Pick a fresh `E2LocalPort` each run — a previous run's still-ESTABLISHED
-SCTP association squatting on the computed local port (`E2LocalPort` +
-cellId) causes `Cannot assign requested address` otherwise.
-
-Terminal 3 (optional), an xApp once E2-SETUP succeeds:
-```bash
-cd /home/user/ns-O-RAN-flexric/flexric/build/examples/xApp/c/monitor
-./xapp_kpm_moni
+  --ns3::NrHelper::E2LocalPort=39100
 ```
 
-### What talks to what
+현재 sweep에서 안정성이 좋았던 기준값은 TTT 256 ms, HYS 6 dB입니다. 비교
+실험에서는 `--handoverTtt`와 `--handoverHysteresis`만 바꾸고 나머지 입력, seed,
+시뮬레이션 시간을 고정하십시오. `experiments/ho-sweep-20260804/`에 로그와 분석
+스크립트가 있습니다.
 
-- **ns-3 <-> Sionna RT**: not a network protocol — pybind11 calls within
-  one process. Every `SionnaRtChannelModel::UpdatePeriod`, ns-3 reads each
-  node pair's `MobilityModel` position and `PhasedArrayModel` antenna
-  geometry, hands them to Sionna's ray-tracing `PathSolver` (GPU-accelerated
-  via Dr.Jit/Mitsuba), and gets back per-path delay/angle/Doppler/complex
-  gain, which becomes an ns-3 `ChannelMatrix` feeding the NR PHY's SINR
-  calculation directly.
-- **ns-3 <-> GUI**: separate from the above — the scenario pushes plain
-  `(x, y, z)` positions over ZMQ (ports 5600/5601) so the GUI can render
-  live movement; the GUI does **not** redo any channel computation itself
-  (`paths.auto_update` is off by default in `gui/scripts/run.py` for
-  exactly this reason — recomputing paths a second time per position update
-  was previously causing ~2s GUI frame times).
-- **ns-3 <-> nearRT-RIC**: real E2AP/E2SM over SCTP, via `oran-interface`'s
-  `E2Termination` (registered per-gNB in `NrHelper::InstallSingleGnbDevice`
-  when `E2ModeNr=true`). Verified through E2-SETUP-REQUEST/RESPONSE only so
-  far — KPM report bodies and RIC-Control dispatch on the NR side are still
-  unimplemented stubs.
+### 문제 해결
+
+- `libe2sim.a` 또는 E2 헤더를 찾지 못함: 4단계를 먼저 실행하고 ns-3를 다시
+  configure합니다.
+- `Cannot assign requested address`: 이전 SCTP 연결이 남아 있을 수 있습니다.
+  nearRT-RIC/ns-3를 종료한 뒤 잠시 기다리거나 `E2LocalPort`를 다른 값으로 바꿉니다.
+- GUI 창이 안 뜸: WSLg의 `DISPLAY`와 Windows 방화벽, ZMQ 포트 5600/5601을
+  확인합니다.
+- Grafana가 비어 있음: 시나리오의 `influxDb`와 dashboard datasource/database가
+  같은지 확인하고 `docker compose logs influxdb grafana`를 봅니다.
+- 재빌드 후에도 예전 동작: 가상환경을 활성화한 상태에서 `./ns3 configure`를 다시
+  실행한 다음 목표 바이너리를 빌드합니다.
+
+### 구성 요소 연결
+
+- ns-3 ↔ Sionna RT: 같은 프로세스 안의 pybind11 호출입니다.
+- ns-3 ↔ GUI: ZMQ 5600/5601로 위치를 전달합니다.
+- ns-3 ↔ nearRT-RIC: SCTP 기반 E2AP/E2SM 연결입니다.
+- ns-3 → InfluxDB → Grafana: KPI 저장 및 dashboard 표시 경로입니다.
 
 ## Table of Contents
 

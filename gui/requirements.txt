@@ -1,7 +1,5 @@
-black
-matplotlib
-numpy
-omegaconf
-sionna-rt==2.0.1
-polyscope>=2.6.0,<2.7.0
-pylint
+-r ../requirements.txt
+
+# GUI development tools (not required by the simulator runtime).
+black==26.5.1
+pylint==4.0.6

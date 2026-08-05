@@ -750,10 +750,11 @@ main(int argc, char* argv[])
 {
     py::scoped_interpreter guard{};
 
-    std::string sionnaScene =
-        "/home/user/LENA-oran-flexric-smo/scenes/khu-real/KHU_Cropped_Sionna_RT.xml";
-    std::string gnbPositionsPath = "/home/user/LENA-oran-flexric-smo/scenarios/khu-real/gnbs-ret.csv";
-    std::string sumoTracePath = "/home/user/LENA-oran-flexric-smo/scenarios/khu-real/ues-15.csv";
+    // Paths are relative to the repository root. Run the binary from there, or
+    // override them through the corresponding command-line arguments.
+    std::string sionnaScene = "scenes/khu-real/KHU_Cropped_Sionna_RT.xml";
+    std::string gnbPositionsPath = "scenarios/khu-real/gnbs-ret.csv";
+    std::string sumoTracePath = "scenarios/khu-real/ues-15.csv";
     uint32_t nUes = 15;
 
     Time simTime = Seconds(180);
