@@ -111,9 +111,43 @@
       "targets": [
         {
           "refId": "A",
-          "query": "SELECT last(\"serving_cell\") AS \"serving cell\", last(\"rsrp_serving_dbm\") AS \"rsrp serving\", last(\"neighbor_cell\") AS \"best neighbor\", last(\"rsrp_neighbor_dbm\") AS \"rsrp neighbor\", last(\"dl_throughput_mbps\") AS \"throughput (Mbps)\", last(\"ho_count\") AS \"HO count\", last(\"seconds_since_ho\") AS \"s since HO\", last(\"is_pingpong\") AS \"ping-pong\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "query": "SELECT last(\"serving_cell\") AS \"serving cell\", last(\"rsrp_serving_dbm\") AS \"rsrp serving\", last(\"neighbor_cell\") AS \"best neighbor\", last(\"rsrp_neighbor_dbm\") AS \"rsrp neighbor\", last(\"dl_throughput_mbps\") AS \"throughput (Mbps)\", last(\"dl_sinr_db\") AS \"SINR (dB)\", last(\"dl_mcs\") AS \"MCS\", last(\"ho_count\") AS \"HO count\", last(\"seconds_since_ho\") AS \"s since HO\", last(\"is_pingpong\") AS \"ping-pong (<10s)\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
           "rawQuery": true,
           "resultFormat": "table"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "DL SINR (dB)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "fieldConfig": { "defaults": { "unit": "dB" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"dl_sinr_db\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "DL MCS",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"dl_mcs\" FROM \"ue_kpi\" WHERE $timeFilter GROUP BY \"ue\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_ue"
         }
       ]
     }

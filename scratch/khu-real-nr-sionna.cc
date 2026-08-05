@@ -38,9 +38,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 using namespace ns3;
 
@@ -421,6 +423,8 @@ struct UeKpiState
     uint16_t lastHoSource = 0;
     uint16_t lastHoTarget = 0;
     bool isPingPong = false;
+    double dlSinrDb = 0.0;
+    uint8_t dlMcs = 0;
 };
 
 static std::map<uint64_t, UeKpiState> g_ueKpi; //!< keyed by IMSI
@@ -433,18 +437,29 @@ struct CellKpiState
     uint32_t hoInCount = 0;
     uint32_t hoOutCount = 0;
     uint32_t pingPongCount = 0;
+    uint64_t prbUsedAccum = 0;     //!< sum of usedReg since the last report, reset each report
+    uint64_t prbCapacityAccum = 0; //!< sum of availableRb*availableSym since the last report
 };
 
 static std::map<uint16_t, CellKpiState> g_cellKpi; //!< keyed by cellId
 
+// rnti is only unique within a single cell, not simulation-wide; keyed on
+// (cellId, rnti) where the trace provides a cellId, and on rnti alone (best
+// effort, most recently seen owner wins) where it doesn't (CqiFeedbackTrace).
+static std::map<std::pair<uint16_t, uint16_t>, uint64_t> g_cellRntiToImsi;
+static std::map<uint16_t, uint64_t> g_rntiToImsi;
+
 static std::map<uint64_t, uint16_t> g_pendingHoSourceCell; //!< IMSI -> source cell of an in-flight HO
 static double g_handoverTtTMs = 0.0;
 static double g_handoverHysteresisDb = 0.0;
-static constexpr double kPingPongWindowSec = 30.0;
+static constexpr double kPingPongWindowSec = 10.0;
 
 static void
-RecordRsrpForKpi(uint64_t imsi, uint16_t cellId, uint16_t /* rnti */, NrRrcSap::MeasurementReport report)
+RecordRsrpForKpi(uint64_t imsi, uint16_t cellId, uint16_t rnti, NrRrcSap::MeasurementReport report)
 {
+    g_cellRntiToImsi[{cellId, rnti}] = imsi;
+    g_rntiToImsi[rnti] = imsi;
+
     auto it = g_ueKpi.find(imsi);
     if (it == g_ueKpi.end())
     {
@@ -463,6 +478,60 @@ RecordRsrpForKpi(uint64_t imsi, uint16_t cellId, uint16_t /* rnti */, NrRrcSap::
             }
         }
     }
+}
+
+static void
+RecordDlSinrForKpi(uint16_t cellId, uint16_t rnti, double sinrLinear, uint16_t /* bwpId */)
+{
+    auto rntiIt = g_cellRntiToImsi.find({cellId, rnti});
+    if (rntiIt == g_cellRntiToImsi.end())
+    {
+        return;
+    }
+    auto ueIt = g_ueKpi.find(rntiIt->second);
+    if (ueIt == g_ueKpi.end())
+    {
+        return;
+    }
+    // NrUePhy::ComputeAvgSinr() returns a linear ratio (confirmed by
+    // NrUePhy::m_rlfDetectionEvent computing 10*log10(ComputeAvgSinr(...))
+    // for the same quantity), so convert to dB here.
+    ueIt->second.dlSinrDb = (sinrLinear > 0.0) ? 10.0 * std::log10(sinrLinear) : -30.0;
+}
+
+static void
+RecordCqiFeedbackForKpi(uint16_t rnti, uint8_t /* cqi */, uint8_t mcs, uint8_t /* ri */)
+{
+    auto rntiIt = g_rntiToImsi.find(rnti);
+    if (rntiIt == g_rntiToImsi.end())
+    {
+        return;
+    }
+    auto ueIt = g_ueKpi.find(rntiIt->second);
+    if (ueIt == g_ueKpi.end())
+    {
+        return;
+    }
+    ueIt->second.dlMcs = mcs;
+}
+
+static void
+RecordSlotDataStatsForKpi(const SfnSf& /* sfnSf */,
+                          uint32_t /* scheduledUe */,
+                          uint32_t usedReg,
+                          uint32_t /* usedSym */,
+                          uint32_t availableRb,
+                          uint32_t availableSym,
+                          uint16_t /* bwpId */,
+                          uint16_t cellId)
+{
+    auto it = g_cellKpi.find(cellId);
+    if (it == g_cellKpi.end())
+    {
+        return;
+    }
+    it->second.prbUsedAccum += usedReg;
+    it->second.prbCapacityAccum += static_cast<uint64_t>(availableRb) * availableSym;
 }
 
 static void
@@ -543,7 +612,9 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                  throughputMbps,
                                                  ue.hoCount,
                                                  secondsSinceHo,
-                                                 ue.isPingPong);
+                                                 ue.isPingPong,
+                                                 ue.dlSinrDb,
+                                                 static_cast<int>(ue.dlMcs));
         }
         catch (const py::error_already_set& error)
         {
@@ -580,6 +651,13 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
             }
         }
 
+        double prbUtilizationPct = (cell.prbCapacityAccum > 0)
+                                       ? (100.0 * static_cast<double>(cell.prbUsedAccum) /
+                                          static_cast<double>(cell.prbCapacityAccum))
+                                       : 0.0;
+        cell.prbUsedAccum = 0;
+        cell.prbCapacityAccum = 0;
+
         try
         {
             g_influxClient->attr("write_cell_kpi")(cell.name,
@@ -593,7 +671,8 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                    cell.hoInCount,
                                                    cell.hoOutCount,
                                                    cell.pingPongCount,
-                                                   aggThroughput);
+                                                   aggThroughput,
+                                                   prbUtilizationPct);
         }
         catch (const py::error_already_set& error)
         {
@@ -896,6 +975,18 @@ main(int argc, char* argv[])
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
 
+    // The handover algorithm object is created as part of InstallGnbDevice(),
+    // so its attributes must be set on the factory before installing gNBs.
+    // Keep these command-line values and the KPI labels tied to the same
+    // effective configuration.
+    if (nrHelper->GetHandoverAlgorithmType() == "ns3::NrA3RsrpHandoverAlgorithm")
+    {
+        nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
+                                                TimeValue(MilliSeconds(handoverTtTMs)));
+        nrHelper->SetHandoverAlgorithmAttribute("Hysteresis",
+                                                DoubleValue(handoverHysteresisDb));
+    }
+
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
@@ -926,13 +1017,18 @@ main(int argc, char* argv[])
     Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/RecvMeasurementReport",
                                           MakeCallback(&RecordRsrpForKpi));
 
-    // Applied here (rather than left to the user passing matching
-    // --ns3::NrA3RsrpHandoverAlgorithm::* flags) so cell_kpi's ttt_ms/
-    // hysteresis_db always reflect what's actually configured. Harmless
-    // no-op if HandoverAlgorithm is left at the default NrNoOpHandoverAlgorithm.
-    nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
-                                            TimeValue(MilliSeconds(handoverTtTMs)));
-    nrHelper->SetHandoverAlgorithmAttribute("Hysteresis", DoubleValue(handoverHysteresisDb));
+    bool sinrConnected = Config::ConnectWithoutContextFailSafe(
+        "/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/NrUePhy/DlDataSinr",
+        MakeCallback(&RecordDlSinrForKpi));
+    bool cqiConnected = Config::ConnectWithoutContextFailSafe(
+        "/NodeList/*/DeviceList/*/ComponentCarrierMapUe/*/NrUePhy/CqiFeedbackTrace",
+        MakeCallback(&RecordCqiFeedbackForKpi));
+    bool slotStatsConnected = Config::ConnectWithoutContextFailSafe(
+        "/NodeList/*/DeviceList/*/BandwidthPartMap/*/NrGnbPhy/SlotDataStats",
+        MakeCallback(&RecordSlotDataStatsForKpi));
+    NS_LOG_UNCOND("[kpi] trace connect: DlDataSinr=" << sinrConnected
+                                                     << " CqiFeedbackTrace=" << cqiConnected
+                                                     << " SlotDataStats=" << slotStatsConnected);
 
     int64_t randomStream = 1;
     randomStream += nrHelper->AssignStreams(gnbNetDev, randomStream);

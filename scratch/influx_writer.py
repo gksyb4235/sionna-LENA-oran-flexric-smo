@@ -13,13 +13,14 @@ read it back):
     fields: serving_cell (string), rsrp_serving_dbm (float),
             neighbor_cell (string), rsrp_neighbor_dbm (float),
             dl_throughput_mbps (float), ho_count (int),
-            seconds_since_ho (float), is_pingpong (int 0/1)
+            seconds_since_ho (float), is_pingpong (int 0/1),
+            dl_sinr_db (float), dl_mcs (int)
 
   measurement "cell_kpi", tag cell=<external gNB id>
     fields: tx_power_dbm, ret_tilt_deg, ret_bearing_deg, ttt_ms,
             hysteresis_db, num_ues (int), avg_rsrp_dbm,
             ho_in_count (int), ho_out_count (int), pingpong_count (int),
-            aggregate_throughput_mbps
+            aggregate_throughput_mbps, prb_utilization_pct
 """
 
 import urllib.request
@@ -96,7 +97,8 @@ class InfluxWriter:
     def write_ue_kpi(self, ue: str, serving_cell: str, rsrp_serving_dbm: float,
                      neighbor_cell: str, rsrp_neighbor_dbm: float,
                      dl_throughput_mbps: float, ho_count: int,
-                     seconds_since_ho: float, is_pingpong: bool) -> bool:
+                     seconds_since_ho: float, is_pingpong: bool,
+                     dl_sinr_db: float = 0.0, dl_mcs: int = 0) -> bool:
         return self.write_point(
             "ue_kpi",
             {"ue": ue},
@@ -109,6 +111,8 @@ class InfluxWriter:
                 "ho_count": int(ho_count),
                 "seconds_since_ho": float(seconds_since_ho),
                 "is_pingpong": bool(is_pingpong),
+                "dl_sinr_db": float(dl_sinr_db),
+                "dl_mcs": int(dl_mcs),
             },
         )
 

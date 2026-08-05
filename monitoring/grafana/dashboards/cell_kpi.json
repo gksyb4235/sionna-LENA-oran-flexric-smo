@@ -103,7 +103,24 @@
           "query": "SELECT \"pingpong_count\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
           "rawQuery": true,
           "resultFormat": "time_series",
-          "alias": "$tag_cell ping-pong"
+          "alias": "$tag_cell ping-pong (<10s)"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "PRB Utilization (%)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"prb_utilization_pct\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
         }
       ]
     }

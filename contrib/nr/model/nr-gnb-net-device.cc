@@ -834,16 +834,22 @@ NrGnbNetDevice::ConfigureCell()
         // RSRP-based one only reports on its own event trigger, not on a
         // predictable schedule). nr's UE-side RRC only implements
         // EVENT-triggered reporting (NrUeRrc::ApplyMeasConfig asserts on
-        // PERIODICAL), so approximate "periodic" with EVENT_A1 against the
-        // lowest possible RSRP threshold -- any connected UE satisfies it
+        // PERIODICAL), so approximate "periodic" with EVENT_A4 against the
+        // lowest possible RSRP threshold -- any detected cell satisfies it
         // immediately, and 3GPP event-triggered reporting still repeats
         // every reportInterval for reportAmount occurrences once triggered,
         // giving effectively periodic reports without interfering with any
         // handover-triggering config the handover algorithm may have added
-        // above.
+        // above. EVENT_A4 (not A1) is required for neighbor-cell reporting:
+        // A1 only ever triggers on the serving cell itself (cellsTriggeredList
+        // contains just m_cellId), which NrUeRrc's report builder then filters
+        // out entirely when it looks for non-serving entries, leaving
+        // measResultListEutra empty. A4 iterates all non-serving stored
+        // measurements and triggers each one independently on an absolute
+        // threshold, so neighbor cells actually show up in the report.
         NrRrcSap::ReportConfigEutra reportConfig;
         reportConfig.triggerType = NrRrcSap::ReportConfigEutra::EVENT;
-        reportConfig.eventId = NrRrcSap::ReportConfigEutra::EVENT_A1;
+        reportConfig.eventId = NrRrcSap::ReportConfigEutra::EVENT_A4;
         reportConfig.threshold1.choice = NrRrcSap::ThresholdEutra::THRESHOLD_RSRP;
         reportConfig.threshold1.range = 0;
         reportConfig.timeToTrigger = 0;
