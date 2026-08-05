@@ -104,6 +104,8 @@ def main() -> int:
 
     cuda_ok = False
     cuda_error: Exception | None = None
+    dr = None
+    mitsuba = None
     try:
         dr = importlib.import_module("drjit")
         mitsuba = importlib.import_module("mitsuba")
@@ -124,8 +126,29 @@ def main() -> int:
     else:
         print("[WARN] Dr.Jit CUDA backend is unavailable; Sionna RT will use the CPU")
 
+    if not cuda_ok and not args.require_gpu:
+        llvm_ok = False
+        llvm_error: Exception | None = None
+        try:
+            if dr is None:
+                dr = importlib.import_module("drjit")
+            if mitsuba is None:
+                mitsuba = importlib.import_module("mitsuba")
+            mitsuba.set_variant("llvm_ad_mono_polarized")
+            probe = mitsuba.Float(1.0)
+            dr.eval(probe)
+            dr.sync_thread()
+            llvm_ok = bool(dr.has_backend(dr.JitBackend.LLVM))
+        except Exception as error:  # pragma: no cover - depends on host LLVM
+            llvm_error = error
+        status(llvm_ok, "Dr.Jit LLVM CPU backend is available")
+        if llvm_error:
+            print(f"       {llvm_error}")
+        failures += not llvm_ok
+
     try:
-        mitsuba = importlib.import_module("mitsuba")
+        if mitsuba is None:
+            mitsuba = importlib.import_module("mitsuba")
         cuda_variants = [name for name in mitsuba.variants() if name.startswith("cuda_")]
         status(bool(cuda_variants), f"Mitsuba CUDA variants: {', '.join(cuda_variants)}")
         failures += not bool(cuda_variants)

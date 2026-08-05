@@ -67,6 +67,10 @@ WSL 터미널에서 먼저 GPU가 보이는지 확인합니다.
 nvidia-smi
 ```
 
+NVIDIA GPU가 없는 시스템도 사용할 수 있습니다. 이 경우 Sionna RT는
+Mitsuba/Dr.Jit의 LLVM CPU backend를 자동으로 선택합니다. CPU 실행 방법은
+[CPU-only 실행](#cpu-only-실행)을 참고하십시오.
+
 GUI는 Windows 11의 WSLg를 사용합니다. `echo "$DISPLAY"`가 비어 있으면 WSL을
 업데이트한 뒤 `wsl --shutdown`하고 다시 시작하십시오.
 
@@ -80,17 +84,64 @@ sudo apt update
 sudo apt install -y \
   build-essential gcc-13 g++-13 cmake cmake-curses-gui ninja-build ccache \
   git pkg-config python3.12 python3.12-dev python3.12-venv \
+  llvm \
   libboost-all-dev libgsl-dev libgtk-3-dev libpcre2-dev \
   libsctp-dev lksctp-tools libsqlite3-dev libxml2-dev \
   autoconf automake libtool bison flex
 ```
 
-Docker는 Windows Docker Desktop의 WSL integration을 권장합니다. 설치 후 WSL에서
-다음 두 명령이 모두 성공해야 합니다.
+#### WSL2 내부에 Docker Engine 설치
+
+이 프로젝트의 검증 환경은 Docker Desktop 연동이 아니라 WSL2의 Ubuntu 안에
+Docker Engine을 직접 설치한 구성입니다. `/etc/wsl.conf`에 다음 설정이 있어야
+systemd가 Docker daemon을 자동으로 시작할 수 있습니다.
+
+```ini
+[boot]
+systemd=true
+```
+
+설정을 새로 추가했다면 Windows PowerShell에서 `wsl --shutdown`을 실행한 뒤 WSL을
+다시 시작합니다. 그다음 [Docker 공식 Ubuntu 설치 절차](https://docs.docker.com/engine/install/ubuntu/)에
+따라 Docker 저장소와 패키지를 설치합니다.
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+sudo tee /etc/apt/sources.list.d/docker.sources >/dev/null <<'EOF'
+Types: deb
+URIs: https://download.docker.com/linux/ubuntu
+Suites: noble
+Components: stable
+Architectures: amd64
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+sudo apt install -y \
+  docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+일반 사용자로 Docker를 실행하려면 사용자를 `docker` 그룹에 추가합니다. 이 그룹은
+root 수준 권한을 부여한다는 점에 유의하십시오.
+
+```bash
+sudo usermod -aG docker "$USER"
+```
+
+명령 후 WSL 터미널을 완전히 닫았다가 다시 연 다음 설치를 확인합니다.
 
 ```bash
 docker version
 docker compose version
+docker run --rm hello-world
 ```
 
 ### 3. 소스 내려받기
@@ -170,7 +221,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-python scripts/check_environment.py --require-gpu --require-e2
+python scripts/check_environment.py --require-e2
 
 ./ns3 configure --enable-examples --enable-tests --enable-python-bindings
 ./ns3 build khu-real-nr-sionna
@@ -182,9 +233,42 @@ configure 출력에 다음 문구가 있어야 합니다.
 Sionna-RT support enabled: all required dependencies were found.
 ```
 
-`check_environment.py --require-gpu`가 실패하면 ns-3 빌드 문제가 아니라 Windows
-드라이버/WSL GPU 전달 문제부터 해결해야 합니다. CPU 동작만 확인할 때는
-`--require-gpu`를 생략할 수 있습니다.
+NVIDIA GPU 사용자는 CUDA backend까지 필수 조건으로 검사할 수 있습니다.
+
+```bash
+python scripts/check_environment.py --require-gpu --require-e2
+```
+
+이 검사가 실패하면 ns-3 빌드 문제가 아니라 Windows 드라이버/WSL GPU 전달 문제부터
+해결해야 합니다. CPU 동작만 확인할 때는 `--require-gpu`를 사용하지 않습니다.
+
+#### CPU-only 실행
+
+NVIDIA GPU가 없어도 같은 `requirements.txt`와 ns-3 바이너리를 사용합니다. 별도의
+`--cpu` 시나리오 옵션은 없습니다. Sionna RT가 CUDA를 찾지 못하면
+`llvm_ad_mono_polarized` Mitsuba variant를 자동으로 선택합니다. Dr.Jit LLVM
+backend에는 LLVM 11 이상이 필요하며, 위 Ubuntu 패키지 단계의 `llvm`이 이를
+설치합니다.
+
+CPU 환경에서는 GPU 검사를 강제하지 않고 다음과 같이 확인합니다.
+
+```bash
+cd "$REPO_ROOT"
+source .venv/bin/activate
+python scripts/check_environment.py --require-e2
+
+python - <<'PY'
+import sionna.rt
+import mitsuba as mi
+print("Mitsuba variant:", mi.variant())
+PY
+```
+
+정상적인 CPU 출력은 `Mitsuba variant: llvm_ad_mono_polarized`입니다. 이후 build와
+시나리오 실행 명령은 GPU 환경과 같습니다. 다만 KHU 전체 scene의 ray tracing은
+CPU에서 훨씬 느릴 수 있으므로 사전 동작 확인에는 `--sionnaUpdatePeriod=5s` 또는
+`10s`를 권장합니다. GPU 실험과 KPI를 비교할 때는 update period, path solver 옵션,
+seed를 양쪽에서 동일하게 유지해야 합니다.
 
 간단한 headless smoke test:
 
