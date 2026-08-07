@@ -24,8 +24,8 @@ A3 RSRP handover 및 TTT/HYS sweep을 함께 사용할 수 있습니다.
 
 ### 재현 범위와 고정 버전
 
-검증 기준은 Ubuntu 24.04 WSL2, Python 3.12, GCC 13입니다. RTX 4090과
-RTX 5090은 같은 소스와 Python 환경을 사용합니다. GPU에 따라 실행 시간은 달라지며,
+검증 기준은 Ubuntu 24.04 WSL2, Python 3.12, GCC 13입니다. 현재 이 문서의
+GPU 검증 기준은 NVIDIA GeForce RTX 4090입니다. GPU에 따라 실행 시간은 달라지며,
 부동소수점/JIT 연산 차이로 임계점 근처의 handover 시각이 완전히 bit-identical하다고
 보장할 수는 없습니다. 논문용 결과에는 `git rev-parse HEAD`, `nvidia-smi`,
 `python -m pip freeze`와 원본 로그를 같이 보관하십시오.
@@ -67,6 +67,67 @@ WSL 터미널에서 먼저 GPU가 보이는지 확인합니다.
 nvidia-smi
 ```
 
+#### WSL2에서 RTX 4090으로 OptiX 사용
+
+`nvidia-smi`가 RTX 4090을 보여도 OptiX는 자동으로 사용할 수 없을 수 있습니다.
+WSL2에서 Mitsuba/Dr.Jit가 사용하는 OptiX runtime은 별도의 Ubuntu 패키지나
+OptiX SDK가 아니라 NVIDIA driver에서 제공됩니다. 따라서 WSL 안에
+`nvidia-driver-*`를 설치하지 않습니다.
+
+이 프로젝트에서 확인한 조합은 RTX 4090, Windows NVIDIA driver 591.86,
+Linux driver runtime 590.48.01입니다. OptiX는 GPU 모델별로 별도 버전을 선택하는
+방식이 아니므로, 새 환경에서는 Windows driver와 같거나 가까운 Linux driver
+runtime을 사용하십시오. WSL2 OptiX는 공식 지원 경로가 아니므로 native Linux보다
+재현성이 낮을 수 있습니다. 자세한 배경은 [Mitsuba의 WSL2 OptiX 안내](https://mitsuba.readthedocs.io/en/v3.6.3/src/optix_setup.html)를
+참고하십시오.
+
+Linux driver `.run` 파일은 설치하지 않고 압축만 풉니다. 아래 예시는 이 프로젝트의
+검증에 사용한 590.48.01 runtime입니다.
+
+```bash
+cd "$HOME"
+wget https://us.download.nvidia.com/XFree86/Linux-x86_64/590.48.01/NVIDIA-Linux-x86_64-590.48.01.run
+bash NVIDIA-Linux-x86_64-590.48.01.run -x --target "$HOME/driver"
+
+mkdir -p "$HOME/driver-dist"
+cp "$HOME/driver/libnvoptix.so."* "$HOME/driver-dist/libnvoptix.so.1"
+cp "$HOME/driver/libnvidia-ptxjitcompiler.so."* "$HOME/driver-dist/libnvidia-ptxjitcompiler.so.1"
+cp "$HOME/driver/libnvidia-rtcore.so."* "$HOME/driver-dist/"
+cp "$HOME/driver/libnvidia-gpucomp.so."* "$HOME/driver-dist/"
+cp "$HOME/driver/nvoptix.bin" "$HOME/driver-dist/"
+explorer.exe "$HOME/driver-dist"
+explorer.exe 'C:\Windows\System32\lxss\lib'
+```
+
+`driver-dist`의 파일들을 Windows의 `C:\Windows\System32\lxss\lib`에 관리자
+권한으로 복사한 뒤 PowerShell에서 WSL을 재시작합니다.
+
+```powershell
+wsl --shutdown
+```
+
+WSL을 다시 시작한 뒤 `DRJIT_LIBOPTIX_PATH`에는 디렉터리가 아니라 실제
+`libnvoptix.so.1` 파일을 지정해야 합니다.
+
+```bash
+export DRJIT_LIBOPTIX_PATH="$HOME/driver-dist/libnvoptix.so.1"
+export LD_LIBRARY_PATH="$HOME/driver-dist:/usr/lib/wsl/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+```
+
+매번 설정하지 않으려면 위 두 `export`를 `~/.bashrc`에 추가합니다. OptiX까지
+확인하려면 CUDA backend 검사만으로 충분하지 않으므로 실제 KHU scene을 로드합니다.
+
+```bash
+cd "$REPO_ROOT"
+source .venv/bin/activate
+python - <<'PY'
+from sionna.rt import load_scene
+
+load_scene("scenes/khu-real/KHU_Cropped_Sionna_RT.xml")
+print("OptiX scene load: OK")
+PY
+```
+
 NVIDIA GPU가 없는 시스템도 사용할 수 있습니다. 이 경우 Sionna RT는
 Mitsuba/Dr.Jit의 LLVM CPU backend를 자동으로 선택합니다. CPU 실행 방법은
 [CPU-only 실행](#cpu-only-실행)을 참고하십시오.
@@ -90,11 +151,12 @@ sudo apt install -y \
   autoconf automake libtool bison flex
 ```
 
-#### WSL2 내부에 Docker Engine 설치
+#### WSL2 Docker Engine 또는 Docker Desktop 사용
 
-이 프로젝트의 검증 환경은 Docker Desktop 연동이 아니라 WSL2의 Ubuntu 안에
-Docker Engine을 직접 설치한 구성입니다. `/etc/wsl.conf`에 다음 설정이 있어야
-systemd가 Docker daemon을 자동으로 시작할 수 있습니다.
+이 프로젝트는 WSL2의 Ubuntu 안에 Docker Engine을 직접 설치하거나, Docker Desktop의
+WSL integration을 사용하는 두 구성을 지원합니다. WSL2 안에서 Docker Engine을
+직접 실행하려면 `/etc/wsl.conf`에 다음 설정이 있어야 systemd가 Docker daemon을
+자동으로 시작할 수 있습니다.
 
 ```ini
 [boot]
@@ -151,14 +213,16 @@ docker run --rm hello-world
 
 ```bash
 export REPO_ROOT="$HOME/LENA-oran-flexric-smo"
-export DEPS_ROOT="$HOME/ns-O-RAN-flexric"
+export DEPS_ROOT="$HOME/LENA-oran-flexric-smo-deps"
 export FLEXRIC_ROOT="$DEPS_ROOT/flexric"
 
 git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git "$REPO_ROOT"
 mkdir -p "$DEPS_ROOT"
 ```
 
-새 터미널에서도 편하게 쓰려면 위 세 `export`를 `~/.bashrc`에 추가합니다.
+`REPO_ROOT`는 이 프로젝트이고, `DEPS_ROOT`는 Git에 포함되지 않는 e2sim/FlexRIC
+외부 소스 전용 디렉터리입니다. 새 터미널에서도 편하게 쓰려면 위 세 `export`를
+`~/.bashrc`에 추가합니다.
 
 ### 4. e2sim 빌드 및 설치
 
@@ -189,20 +253,47 @@ e2sim과 프로토콜 버전을 맞추기 위해 반드시 E2AP v1.01, KPM v3.00
 아래 commit은 현재 검증된 nearRT-RIC 코어와 동일합니다. 로컬 RET xApp 개발분은
 nearRT-RIC 실행에 필요하지 않습니다.
 
+FlexRIC의 RRC monitor 예제는 시스템 `asn1c` 0.9.24가 제공하는 구형 옵션으로는
+빌드되지 않습니다. 특히 `-gen-UPER`가 지원되지 않아 `gen-UPER: Invalid argument`
+및 `ANY_aper.c: No such file or directory`가 발생합니다. FlexRIC가 사용하는
+`mouse07410/asn1c` fork를 먼저 설치합니다.
+
 ```bash
-git clone https://gitlab.eurecom.fr/mosaic5g/flexric.git "$FLEXRIC_ROOT"
+if [ ! -d "$DEPS_ROOT/asn1c/.git" ]; then
+  git clone https://github.com/mouse07410/asn1c.git "$DEPS_ROOT/asn1c"
+fi
+git -C "$DEPS_ROOT/asn1c" checkout 940dd5fa9f3917913fd487b13dfddfacd0ded06e
+cd "$DEPS_ROOT/asn1c"
+autoreconf -iv
+./configure --prefix=/opt/asn1c
+make -j"$(nproc)"
+sudo make install
+```
+
+그다음 FlexRIC를 빌드합니다. 이미 `FLEXRIC_ROOT`에 clone이 있으면 `git clone`은
+다시 실행하지 말고 `fetch`부터 실행합니다.
+
+```bash
+if [ ! -d "$FLEXRIC_ROOT/.git" ]; then
+  git clone https://gitlab.eurecom.fr/mosaic5g/flexric.git "$FLEXRIC_ROOT"
+fi
+git -C "$FLEXRIC_ROOT" fetch origin
 git -C "$FLEXRIC_ROOT" checkout --detach \
   307e1d0a5c26751c9e5595805b668a4f91d09550
 
 cmake -S "$FLEXRIC_ROOT" -B "$FLEXRIC_ROOT/build" \
+  -DASN1C_EXEC=/opt/asn1c/bin/asn1c \
   -DCMAKE_BUILD_TYPE=Debug \
   -DE2AP_VERSION=E2AP_V1 \
   -DKPM_VERSION=KPM_V3_00 \
   -DXAPP_MULTILANGUAGE=OFF
-cmake --build "$FLEXRIC_ROOT/build" -j"$(nproc)"
-sudo cmake --install "$FLEXRIC_ROOT/build"
-sudo ldconfig
+cmake --build "$FLEXRIC_ROOT/build" -j"$(nproc)" && \
+  sudo cmake --install "$FLEXRIC_ROOT/build" && \
+  sudo ldconfig
 ```
+
+`cmake --build`가 실패하면 설치 단계도 실행하지 않습니다. 이전에 실패한 빌드의
+오래된 산출물을 설치하지 않도록 `&&`를 유지하십시오.
 
 설치 후 `/usr/local/etc/flexric/flexric.conf`의 `NEAR_RIC_IP`가
 `127.0.0.1`인지 확인합니다. RIC를 다른 호스트에서 실행할 때만 해당 IP와 ns-3의
@@ -225,6 +316,19 @@ python scripts/check_environment.py --require-e2
 
 ./ns3 configure --enable-examples --enable-tests --enable-python-bindings
 ./ns3 build khu-real-nr-sionna
+```
+
+GUI 설정 파일은 upstream 패키지의 `data/` 경로가 Git에서 제외된 경우가 있어,
+소스 실행에서는 기본 `base.yaml`을 찾지 못할 수 있습니다. 이 저장소에서는
+간단한 로컬 설정 파일을 만들어 명시적으로 전달합니다.
+
+```bash
+if [ ! -f "$REPO_ROOT/gui/local.yaml" ]; then
+  cat > "$REPO_ROOT/gui/local.yaml" <<'EOF'
+rendering:
+  envmap: null
+EOF
+fi
 ```
 
 configure 출력에 다음 문구가 있어야 합니다.
@@ -297,7 +401,9 @@ docker compose up -d
 ```bash
 cd "$REPO_ROOT/gui"
 source "$REPO_ROOT/.venv/bin/activate"
-python scripts/run.py "$REPO_ROOT/scenes/khu-real/KHU_Cropped_Sionna_RT.xml"
+python scripts/run.py \
+  --config "$REPO_ROOT/gui/local.yaml" \
+  "$REPO_ROOT/scenes/khu-real/KHU_Cropped_Sionna_RT.xml"
 ```
 
 터미널 2 — nearRT-RIC:
@@ -343,6 +449,19 @@ source .venv/bin/activate
   nearRT-RIC/ns-3를 종료한 뒤 잠시 기다리거나 `E2LocalPort`를 다른 값으로 바꿉니다.
 - GUI 창이 안 뜸: WSLg의 `DISPLAY`와 Windows 방화벽, ZMQ 포트 5600/5601을
   확인합니다.
+- `Could not initialize OptiX`: `nvidia-smi`가 GPU를 보여도 OptiX runtime이
+  준비되지 않았을 수 있습니다. `DRJIT_LIBOPTIX_PATH`가
+  `/home/.../driver-dist/libnvoptix.so.1`처럼 실제 파일을 가리키는지, 그리고
+  `LD_LIBRARY_PATH`에 `driver-dist`가 포함되는지 확인한 뒤 WSL을 재시작합니다.
+- `Config file not found: .../base.yaml`: 소스 GUI의 기본 `data/` 설정이 없을 수
+  있습니다. 위의 `gui/local.yaml`을 만들고 `--config "$REPO_ROOT/gui/local.yaml"`
+  을 사용합니다.
+- `ModuleNotFoundError: No module named 'zmq_bridge'`: `--guiSrc`는 GUI 디렉터리가
+  아니라 `"$REPO_ROOT/scratch"`여야 합니다. `--influxSrc`도 같은 디렉터리를
+  사용해야 하며, `/home/user/...`처럼 다른 계정의 경로를 하드코딩하지 않습니다.
+- Docker pull 중 `docker-credential-desktop.exe: exec format error`: WSL의
+  `~/.docker/config.json`이 Windows credential helper를 가리키는 경우입니다.
+  공개 이미지 사용 시 파일을 `{}`로 바꾸고 `docker compose pull`을 다시 실행합니다.
 - Grafana가 비어 있음: 시나리오의 `influxDb`와 dashboard datasource/database가
   같은지 확인하고 `docker compose logs influxdb grafana`를 봅니다.
 - 재빌드 후에도 예전 동작: 가상환경을 활성화한 상태에서 `./ns3 configure`를 다시
