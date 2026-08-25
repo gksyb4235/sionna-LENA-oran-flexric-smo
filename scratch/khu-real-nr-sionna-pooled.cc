@@ -68,7 +68,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
+#include <functional>
 #include <fstream>
 #include <limits>
 #include <queue>
@@ -380,14 +382,32 @@ SendColorToGui(py::object& client, const std::string& name, const Vector& color)
     }
 }
 
-static const std::vector<Vector> kCellColorPalette = {
-    Vector(0.90, 0.20, 0.20), // red
-    Vector(0.20, 0.45, 0.90), // blue
-    Vector(0.20, 0.75, 0.35), // green
+// Keyed by gNB external id (not CSV row order) so a given cell name always
+// gets the same color in both the GUI and the Grafana "Connected UEs" panel
+// (monitoring/grafana/dashboards/cell_kpi.json field overrides use these same
+// hex values). Falls back to a rotating palette for any unlisted name.
+static const std::map<std::string, Vector> kCellColorByName = {
+    {"gNB_5G", Vector(0.90, 0.20, 0.20)},   // red   #E63333
+    {"gNB_4G_1", Vector(0.20, 0.45, 0.90)}, // blue  #3373E6
+    {"gNB_4G_2", Vector(0.20, 0.75, 0.35)}, // green #33BF59
+};
+
+static const std::vector<Vector> kCellColorFallbackPalette = {
     Vector(0.95, 0.60, 0.10), // orange
     Vector(0.65, 0.30, 0.85), // purple
     Vector(0.20, 0.80, 0.80), // teal
 };
+
+static Vector
+CellColorForName(const std::string& externalId, uint32_t fallbackIndex)
+{
+    auto it = kCellColorByName.find(externalId);
+    if (it != kCellColorByName.end())
+    {
+        return it->second;
+    }
+    return kCellColorFallbackPalette[fallbackIndex % kCellColorFallbackPalette.size()];
+}
 
 // ---- Handover event logging (unchanged from khu-real-nr-sionna.cc) ----
 static std::map<uint64_t, Ptr<Node>> g_imsiToUeNode;
@@ -476,6 +496,12 @@ RecordAttachForKpi(uint64_t imsi, uint16_t cellId, uint16_t rnti)
 {
     g_cellRntiToImsi[{cellId, rnti}] = imsi;
     g_rntiToImsi[rnti] = imsi;
+    // ConnectionEstablished fires for a UE's very first attach (AttachToGnb),
+    // which never goes through HandoverStart/HandoverEndOk -- without this,
+    // a freshly-attached UE stays at the GUI's default color until/unless it
+    // later happens to handover, even though it's already really being
+    // served by cellId.
+    RecolorUeForCell(imsi, cellId);
 }
 
 static void
@@ -824,7 +850,16 @@ ComputeActiveWindows(const UeTrace& trace, double simTimeSec, std::vector<Vector
     }
     if (active && activeStart < simTimeSec)
     {
-        windows.emplace_back(activeStart, simTimeSec);
+        // No explicit active=false departure row (current ue_positions_seed*
+        // .csv traces don't emit one -- a UE's window just stops appearing).
+        // Close the session at that UE's own last sample time, not blindly
+        // at simTimeSec -- otherwise every UE that never gets an explicit
+        // departure row (all of them, in traces with no "false" rows at all)
+        // looks "active" all the way to the end of the simulation, collapsing
+        // the whole point of slot pooling (observed: max concurrent silently
+        // inflating from 85 to 262 on a trace with zero active=false rows).
+        double lastSampleTime = trace.samples.empty() ? activeStart : trace.samples.back().time;
+        windows.emplace_back(activeStart, std::min(lastSampleTime, simTimeSec));
         startPositions->push_back(activeStartPos);
     }
     return windows;
@@ -1032,7 +1067,7 @@ main(int argc, char* argv[])
         SendGnbPositionToGui(guiClient, gnbPositions[i].externalId, gnbPositions[i].position);
 
         const uint16_t cellId = static_cast<uint16_t>(i + 1);
-        const Vector cellColor = kCellColorPalette[i % kCellColorPalette.size()];
+        const Vector cellColor = CellColorForName(gnbPositions[i].externalId, i);
         g_cellIdToColor[cellId] = cellColor;
         SendColorToGui(guiClient, gnbPositions[i].externalId, cellColor);
         g_cellKpi[cellId].name = gnbPositions[i].externalId;
@@ -1109,6 +1144,8 @@ main(int argc, char* argv[])
                            StringValue(sionnaCacheFile));
         Config::SetDefault("ns3::SionnaLookupChannelModel::Frequency",
                            DoubleValue(centralFrequencyBand1));
+        Config::SetDefault("ns3::SionnaLookupChannelModel::UpdatePeriod",
+                           TimeValue(sionnaUpdatePeriod));
         Config::SetDefault("ns3::SionnaRtSpectrumPropagationLossModel::ChannelModel",
                            StringValue("ns3::SionnaLookupChannelModel"));
         NS_LOG_UNCOND("[sionna] using lookup-table channel model, cache=" << sionnaCacheFile);
@@ -1148,13 +1185,16 @@ main(int argc, char* argv[])
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
 
-    if (nrHelper->GetHandoverAlgorithmType() == "ns3::NrA3RsrpHandoverAlgorithm")
-    {
-        nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
-                                                TimeValue(MilliSeconds(handoverTtTMs)));
-        nrHelper->SetHandoverAlgorithmAttribute("Hysteresis",
-                                                DoubleValue(handoverHysteresisDb));
-    }
+    // Real RSRP/A3-event-driven handover, not the NoOp default: this is what
+    // makes the scripted slot-reuse reassignment above (a distance-based
+    // "teleport" for a brand-new occupant) distinguishable in the KPI/log
+    // output from a genuine mobility-driven handover of an already-settled
+    // UE -- the latter now actually fires from real RSRP measurement
+    // reports (see RecordRsrpForKpi) instead of never happening at all.
+    nrHelper->SetHandoverAlgorithmType("ns3::NrA3RsrpHandoverAlgorithm");
+    nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
+                                            TimeValue(MilliSeconds(handoverTtTMs)));
+    nrHelper->SetHandoverAlgorithmAttribute("Hysteresis", DoubleValue(handoverHysteresisDb));
 
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
@@ -1374,16 +1414,24 @@ main(int argc, char* argv[])
 
                 if (!slotEverAttached[slot])
                 {
-                    // AttachToMaxRsrpGnb (true RSRP-based initial attach) was
-                    // tried here first but reliably segfaults when invoked
-                    // dynamically mid-simulation in this NR fork -- it only
-                    // seems to be exercised, upstream, as a one-shot call for
-                    // all UEs before Simulator::Run() begins. Falling back to
-                    // the same distance-based AttachToGnb the baseline
-                    // scenario (khu-real-nr-sionna.cc) uses for its own
-                    // initial deployment: with only 2 isotropic, non-RET gNBs
-                    // here, nearest-by-distance and strongest-by-RSRP pick
-                    // the same cell in practice.
+                    // Distance-based initial attach. A real-RSRP alternative
+                    // via NrInitialAssociation::GetCellRsrps() was tried here
+                    // but crashes: ExtractUeParameters() (nr-initial-
+                    // association.cc:253,266) StaticCasts the channel's
+                    // phased-array model to ThreeGppSpectrumPropagationLossModel
+                    // and assumes the channel additionally carries a separate
+                    // scalar ThreeGppPropagationLossModel -- neither holds
+                    // for the Sionna pipeline (SionnaRtSpectrumPropagationLossModel
+                    // is a PhasedArraySpectrumPropagationLossModel sibling, not
+                    // a ThreeGpp subclass, and Sionna bakes path loss directly
+                    // into its ray-traced channel matrix instead of a separate
+                    // scalar model), so chParams.pathLossModel ends up null and
+                    // ComputeMaxRsrpClean segfaults dereferencing it. This is a
+                    // real architecture mismatch in NrInitialAssociation, not a
+                    // narrow bug -- would need contrib/nr surgery to fix
+                    // properly, not a scenario-side workaround. With only
+                    // isotropic/near-isotropic elements and DirectPathBeamforming,
+                    // nearest-by-distance remains a reasonable stand-in.
                     slotEverAttached[slot] = true;
                     double minDistance = std::numeric_limits<double>::infinity();
                     Ptr<NetDevice> closest;
@@ -1488,6 +1536,25 @@ main(int argc, char* argv[])
     endpointNodes.Add(remoteHost);
     endpointNodes.Add(ueNodes);
     Ptr<ns3::FlowMonitor> monitor = flowmonHelper.Install(endpointNodes);
+
+    // Perf diagnostic: wall-clock timestamp at every simulated second, to
+    // see whether slow spots correlate with specific events (attach/HO) or
+    // are spread uniformly.
+    {
+        static auto wallStart = std::chrono::steady_clock::now();
+        static std::function<void()> heartbeat = [&]() {
+            auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() -
+                                                          wallStart)
+                              .count();
+            NS_LOG_UNCOND("[PERF] simTime=" << Simulator::Now().GetSeconds()
+                                            << "s wallClock=" << elapsed << "s");
+            if (Simulator::Now() + Seconds(1) <= simTime)
+            {
+                Simulator::Schedule(Seconds(1), heartbeat);
+            }
+        };
+        Simulator::Schedule(Seconds(0), heartbeat);
+    }
 
     Simulator::Stop(simTime);
     Simulator::Run();

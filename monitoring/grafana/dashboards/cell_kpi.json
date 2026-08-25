@@ -30,7 +30,29 @@
       "type": "timeseries",
       "datasource": "InfluxDB",
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 7 },
-      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "fieldConfig": {
+        "defaults": { "unit": "none" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "gNB_5G" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#E63333" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "gNB_4G_1" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#3373E6" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "gNB_4G_2" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#33BF59" } }
+            ]
+          }
+        ]
+      },
       "targets": [
         {
           "refId": "A",

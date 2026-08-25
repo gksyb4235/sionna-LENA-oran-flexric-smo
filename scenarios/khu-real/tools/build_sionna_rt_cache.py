@@ -180,27 +180,27 @@ def run_gnb(scene, rt, solver, gnb, positions, batch_size, h5group, log_prefix):
         if a_out is None:
             a_out = h5group.create_dataset(
                 "a", shape=(n, num_rx_ant, num_tx_ant, MAX_PATHS),
-                dtype=np.complex64, chunks=True, compression="gzip", compression_opts=4,
+                dtype=np.complex64, chunks=True, compression="lzf",
             )
             tau_out = h5group.create_dataset(
                 "tau", shape=(n, num_rx_ant, num_tx_ant, MAX_PATHS),
-                dtype=np.float32, chunks=True, compression="gzip", compression_opts=4,
+                dtype=np.float32, chunks=True, compression="lzf",
             )
             theta_t_out = h5group.create_dataset(
                 "theta_t", shape=(n, MAX_PATHS), dtype=np.float32,
-                chunks=True, compression="gzip", compression_opts=4,
+                chunks=True, compression="lzf",
             )
             phi_t_out = h5group.create_dataset(
                 "phi_t", shape=(n, MAX_PATHS), dtype=np.float32,
-                chunks=True, compression="gzip", compression_opts=4,
+                chunks=True, compression="lzf",
             )
             theta_r_out = h5group.create_dataset(
                 "theta_r", shape=(n, MAX_PATHS), dtype=np.float32,
-                chunks=True, compression="gzip", compression_opts=4,
+                chunks=True, compression="lzf",
             )
             phi_r_out = h5group.create_dataset(
                 "phi_r", shape=(n, MAX_PATHS), dtype=np.float32,
-                chunks=True, compression="gzip", compression_opts=4,
+                chunks=True, compression="lzf",
             )
             num_paths_out = h5group.create_dataset(
                 "num_paths", shape=(n,), dtype=np.int32

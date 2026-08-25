@@ -5,6 +5,7 @@
 #define SIONNA_LOOKUP_CHANNEL_MODEL_H
 
 #include "matrix-based-channel-model.h"
+#include "sionna-rt-channel-model.h"
 
 #include "ns3/vector.h"
 
@@ -71,6 +72,9 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
     void SetFrequency(double f);
     double GetFrequency() const;
 
+    void SetUpdatePeriod(Time period);
+    Time GetUpdatePeriod() const;
+
     Ptr<const ChannelMatrix> GetChannel(Ptr<const MobilityModel> aMob,
                                         Ptr<const MobilityModel> bMob,
                                         Ptr<const PhasedArrayModel> aAntenna,
@@ -113,6 +117,17 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
     /// within 1cm, or nullptr if `pos` isn't one of the cached gNBs.
     const GnbCacheEntry* FindGnbByPosition(const Vector& pos) const;
 
+    /// Benign near-zero-gain placeholder for device pairs the cache has no
+    /// data for (gNB<->gNB, UE<->UE, etc. -- see GetChannel's class doc).
+    /// Sized from the antennas' real element counts (not the cache) so
+    /// downstream element-count assertions still hold. Populates both maps
+    /// and returns the ChannelMatrix.
+    Ptr<ChannelMatrix> BuildPlaceholderChannel(const Ptr<const MobilityModel>& aMob,
+                                               const Ptr<const MobilityModel>& bMob,
+                                               Ptr<const PhasedArrayModel> aAntenna,
+                                               Ptr<const PhasedArrayModel> bAntenna,
+                                               uint64_t matrixKey);
+
     /// Row index into a GnbCacheEntry's arrays for the (possibly
     /// off-grid) query position, snapping to the same 1m/1m/0.1m grid the
     /// cache was built with, falling back to nearest-neighbor on a miss.
@@ -126,7 +141,7 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
                                           Ptr<const PhasedArrayModel> bAntenna,
                                           bool gnbIsA) const;
 
-    Ptr<ChannelParams> BuildChannelParams(const GnbCacheEntry& gnb,
+    Ptr<SionnaRtChannelModel::SionnaRtChannelParams> BuildChannelParams(const GnbCacheEntry& gnb,
                                           size_t row,
                                           const Ptr<const MobilityModel>& aMob,
                                           const Ptr<const MobilityModel>& bMob) const;
@@ -135,6 +150,7 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
     mutable bool m_cacheLoaded = false;
     std::string m_cacheFile;
     double m_frequency = 3.5e9;
+    Time m_updatePeriod = MilliSeconds(50); // matches SionnaRtChannelModel's own default
 
     mutable std::unordered_map<uint64_t, Ptr<ChannelMatrix>> m_channelMatrixMap;
     mutable std::unordered_map<uint64_t, Ptr<ChannelParams>> m_channelParamsMap;

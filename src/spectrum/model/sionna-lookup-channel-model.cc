@@ -14,6 +14,7 @@
 #include "ns3/string.h"
 #include "ns3/uinteger.h"
 
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -43,7 +44,18 @@ SionnaLookupChannelModel::GetTypeId()
                           DoubleValue(3.5e9),
                           MakeDoubleAccessor(&SionnaLookupChannelModel::SetFrequency,
                                              &SionnaLookupChannelModel::GetFrequency),
-                          MakeDoubleChecker<double>());
+                          MakeDoubleChecker<double>())
+            .AddAttribute("UpdatePeriod",
+                          "How long a cached channel matrix/params entry is reused before "
+                          "being recomputed from the current position. Same staleness "
+                          "semantics as SionnaRtChannelModel::UpdatePeriod -- without this, a "
+                          "pool slot's channel would be computed once and reused forever, "
+                          "since the antenna IDs GetChannel() keys on never change even as a "
+                          "different logical UE occupies the slot and moves.",
+                          TimeValue(MilliSeconds(50)),
+                          MakeTimeAccessor(&SionnaLookupChannelModel::SetUpdatePeriod,
+                                          &SionnaLookupChannelModel::GetUpdatePeriod),
+                          MakeTimeChecker());
     return tid;
 }
 
@@ -90,12 +102,27 @@ SionnaLookupChannelModel::GetFrequency() const
 }
 
 void
+SionnaLookupChannelModel::SetUpdatePeriod(Time period)
+{
+    m_updatePeriod = period;
+}
+
+Time
+SionnaLookupChannelModel::GetUpdatePeriod() const
+{
+    return m_updatePeriod;
+}
+
+void
 SionnaLookupChannelModel::EnsureCacheLoaded() const
 {
     if (!m_cacheLoaded)
     {
+        auto t0 = std::chrono::steady_clock::now();
         LoadCache();
         m_cacheLoaded = true;
+        auto dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        NS_LOG_UNCOND("[SionnaLookup] PERF LoadCache took " << dt << "s");
     }
 }
 
@@ -107,12 +134,23 @@ SionnaLookupChannelModel::LoadCache() const
                     "build_sionna_rt_cache.py");
     NS_LOG_UNCOND("[SionnaLookup] loading cache from " << m_cacheFile);
 
+    auto tImportStart = std::chrono::steady_clock::now();
     py::module_ h5py = py::module_::import("h5py");
+    auto tAfterH5py = std::chrono::steady_clock::now();
     py::module_ np = py::module_::import("numpy");
+    auto tAfterNumpy = std::chrono::steady_clock::now();
     py::object hf = h5py.attr("File")(m_cacheFile, "r");
+    auto tAfterOpen = std::chrono::steady_clock::now();
+    NS_LOG_UNCOND(
+        "[SionnaLookup] PERF import h5py="
+        << std::chrono::duration<double>(tAfterH5py - tImportStart).count()
+        << "s import numpy=" << std::chrono::duration<double>(tAfterNumpy - tAfterH5py).count()
+        << "s File.open=" << std::chrono::duration<double>(tAfterOpen - tAfterNumpy).count()
+        << "s");
 
     for (auto item : hf.attr("keys")())
     {
+        auto tGroupStart = std::chrono::steady_clock::now();
         std::string gnbName = py::str(item);
         py::object group = hf[py::str(gnbName)];
 
@@ -185,7 +223,13 @@ SionnaLookupChannelModel::LoadCache() const
 
         NS_LOG_UNCOND("[SionnaLookup] loaded '" << gnbName << "': " << n << " positions, "
                                                 << entry.numRxAnt << "x" << entry.numTxAnt
-                                                << " antennas, maxPaths=" << entry.maxPaths);
+                                                << " antennas, maxPaths=" << entry.maxPaths
+                                                << " (took "
+                                                << std::chrono::duration<double>(
+                                                       std::chrono::steady_clock::now() -
+                                                       tGroupStart)
+                                                       .count()
+                                                << "s)");
         m_gnbCache[gnbName] = std::move(entry);
     }
 
@@ -222,9 +266,14 @@ SionnaLookupChannelModel::FindRow(const GnbCacheEntry& entry, const Vector& quer
     // Off-grid (e.g. a UE trace not among the ones the cache was built
     // from): fall back to brute-force nearest neighbor. Expected to be rare
     // for the seed0-29 traces this cache targets.
-    NS_LOG_WARN("[SionnaLookup] position (" << queryPos.x << "," << queryPos.y << "," << queryPos.z
-                                            << ") is off the cache grid; falling back to nearest "
-                                               "neighbor");
+    static uint64_t offGridCount = 0;
+    ++offGridCount;
+    if (offGridCount % 500 == 1)
+    {
+        NS_LOG_UNCOND("[SionnaLookup] PERF off-grid fallback #"
+                      << offGridCount << " pos=(" << queryPos.x << "," << queryPos.y << ","
+                      << queryPos.z << ")");
+    }
     size_t best = 0;
     double bestDist = std::numeric_limits<double>::infinity();
     for (size_t i = 0; i < entry.positions.size(); ++i)
@@ -237,6 +286,38 @@ SionnaLookupChannelModel::FindRow(const GnbCacheEntry& entry, const Vector& quer
         }
     }
     return best;
+}
+
+Ptr<MatrixBasedChannelModel::ChannelMatrix>
+SionnaLookupChannelModel::BuildPlaceholderChannel(const Ptr<const MobilityModel>& aMob,
+                                                  const Ptr<const MobilityModel>& bMob,
+                                                  Ptr<const PhasedArrayModel> aAntenna,
+                                                  Ptr<const PhasedArrayModel> bAntenna,
+                                                  uint64_t matrixKey)
+{
+    Ptr<ChannelMatrix> channelMatrix = Create<ChannelMatrix>();
+    channelMatrix->m_generatedTime = Simulator::Now();
+    channelMatrix->m_channel = Complex3DVector(bAntenna->GetNumElems(), aAntenna->GetNumElems(), 1);
+    channelMatrix->m_nodeIds =
+        std::make_pair(aMob->GetObject<Node>()->GetId(), bMob->GetObject<Node>()->GetId());
+    channelMatrix->m_antennaPair = std::make_pair(aAntenna->GetId(), bAntenna->GetId());
+    m_channelMatrixMap[matrixKey] = channelMatrix;
+
+    Ptr<SionnaRtChannelModel::SionnaRtChannelParams> params =
+        Create<SionnaRtChannelModel::SionnaRtChannelParams>();
+    params->m_generatedTime = Simulator::Now();
+    params->m_nodeIds =
+        std::make_pair(aMob->GetObject<Node>()->GetId(), bMob->GetObject<Node>()->GetId());
+    params->m_delay = {0.0};
+    params->m_angle.assign(4, DoubleVector{0.0});
+    params->m_alpha = {0.0};
+    params->m_D = {0.0};
+    params->m_doppler = {0.0};
+    params->m_cachedAngleSincos.assign(4, std::vector<std::pair<double, double>>{{0.0, 1.0}});
+    uint64_t paramsKey = GetKey(aMob->GetObject<Node>()->GetId(), bMob->GetObject<Node>()->GetId());
+    m_channelParamsMap[paramsKey] = params;
+
+    return channelMatrix;
 }
 
 Ptr<MatrixBasedChannelModel::ChannelMatrix>
@@ -299,14 +380,20 @@ SionnaLookupChannelModel::BuildChannelMatrix(const GnbCacheEntry& gnb,
     return channelMatrix;
 }
 
-Ptr<MatrixBasedChannelModel::ChannelParams>
+Ptr<SionnaRtChannelModel::SionnaRtChannelParams>
 SionnaLookupChannelModel::BuildChannelParams(const GnbCacheEntry& gnb,
                                              size_t row,
                                              const Ptr<const MobilityModel>& aMob,
                                              const Ptr<const MobilityModel>& bMob) const
 {
+    // Must be the SionnaRtChannelParams subtype, not the plain base
+    // ChannelParams -- SionnaRtSpectrumPropagationLossModel::
+    // CalcBeamformingGain unconditionally DynamicCasts to it (for
+    // m_doppler) and dereferences the result without a null check.
     uint32_t numPaths = gnb.numPaths[row];
-    Ptr<ChannelParams> params = Create<ChannelParams>();
+    Ptr<SionnaRtChannelModel::SionnaRtChannelParams> params =
+        Create<SionnaRtChannelModel::SionnaRtChannelParams>();
+    params->m_doppler.assign(numPaths, 0.0); // no Doppler modeling, see class doc
     params->m_generatedTime = Simulator::Now();
     params->m_nodeIds =
         std::make_pair(aMob->GetObject<Node>()->GetId(), bMob->GetObject<Node>()->GetId());
@@ -355,18 +442,41 @@ SionnaLookupChannelModel::GetChannel(Ptr<const MobilityModel> aMob,
     uint64_t key = GetKey(aAntenna->GetId(), bAntenna->GetId());
     if (auto it = m_channelMatrixMap.find(key); it != m_channelMatrixMap.end())
     {
-        return it->second;
+        // Staleness check -- without this, a pool slot's channel would be
+        // computed once (for whichever position/occupant happened to be
+        // first) and reused forever: the antenna IDs GetChannel() keys on
+        // are fixed per slot for the whole simulation, so a plain "cache hit
+        // = return it" short-circuit never notices the UE has moved or the
+        // slot was reassigned to a different logical person. Matches
+        // SionnaRtChannelModel::ChannelMatrixNeedsUpdate's semantics.
+        if (m_updatePeriod.IsZero() ||
+            Simulator::Now() - it->second->m_generatedTime <= m_updatePeriod)
+        {
+            return it->second;
+        }
     }
 
-    const GnbCacheEntry* gnbEntry = FindGnbByPosition(aMob->GetPosition());
-    bool gnbIsA = (gnbEntry != nullptr);
-    if (!gnbEntry)
+    const GnbCacheEntry* aGnb = FindGnbByPosition(aMob->GetPosition());
+    const GnbCacheEntry* bGnb = FindGnbByPosition(bMob->GetPosition());
+
+    if (static_cast<bool>(aGnb) == static_cast<bool>(bGnb))
     {
-        gnbEntry = FindGnbByPosition(bMob->GetPosition());
+        // Either both endpoints are gNBs (inter-cell interference/measurement
+        // queries between the 3 macro cells -- antenna ids 0/1/2 are always
+        // the gNBs, installed before any UE device) or neither is (e.g.
+        // UE<->UE interference/collision queries). The cache only has
+        // gNB<->UE-position samples, so there's nothing to look up for
+        // either case -- return a benign placeholder instead.
+        NS_LOG_WARN("[SionnaLookup] "
+                    << (aGnb ? "gNB<->gNB" : "non-gNB<->non-gNB")
+                    << " channel requested (antenna ids " << aAntenna->GetId() << ","
+                    << bAntenna->GetId()
+                    << "); cache has no data for this pair, returning a benign placeholder");
+        return BuildPlaceholderChannel(aMob, bMob, aAntenna, bAntenna, key);
     }
-    NS_ABORT_MSG_IF(!gnbEntry,
-                    "SionnaLookupChannelModel: neither endpoint matches a cached gNB position "
-                    "-- is gnbs-ret.csv different from the one the cache was built with?");
+
+    const GnbCacheEntry* gnbEntry = aGnb ? aGnb : bGnb;
+    bool gnbIsA = (aGnb != nullptr);
 
     Ptr<const MobilityModel> ueMob = gnbIsA ? bMob : aMob;
 
@@ -374,12 +484,6 @@ SionnaLookupChannelModel::GetChannel(Ptr<const MobilityModel> aMob,
     Ptr<ChannelMatrix> channelMatrix =
         BuildChannelMatrix(*gnbEntry, row, aMob, bMob, aAntenna, bAntenna, gnbIsA);
     m_channelMatrixMap[key] = channelMatrix;
-    NS_LOG_UNCOND("[SionnaLookup] DEBUG GetChannel gnbIsA="
-                  << gnbIsA << " aAntennaId=" << aAntenna->GetId()
-                  << " bAntennaId=" << bAntenna->GetId() << " aPorts=" << aAntenna->GetNumPorts()
-                  << " bPorts=" << bAntenna->GetNumPorts() << " matrixRows="
-                  << channelMatrix->m_channel.GetNumRows()
-                  << " matrixCols=" << channelMatrix->m_channel.GetNumCols());
 
     uint64_t paramsKey = GetKey(aMob->GetObject<Node>()->GetId(), bMob->GetObject<Node>()->GetId());
     m_channelParamsMap[paramsKey] = BuildChannelParams(*gnbEntry, row, aMob, bMob);
