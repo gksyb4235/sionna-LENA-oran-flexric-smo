@@ -421,6 +421,20 @@ class ZMQBridgeClient:
             "num_v": num_v,
         })
 
+    def send_gnb_orientation(self, name: str, bearing_deg: float, tilt_deg: float) -> bool:
+        """Plain mechanical orientation update for a gNB's existing antenna
+        array (no array reshaping, no electrical-tilt precoding vector --
+        see send_gnb_antenna/set_gnb_antenna_state for that legacy path).
+        Matches ns-3's own UniformPlanarArray::SetAlpha/SetBeta semantics:
+        the whole array is physically rotated, same as
+        NrGnbNetDevice::ApplyRetControl does on the ns-3 side."""
+        return self._send_cmd({
+            "type": "gnb_orientation",
+            "name": name,
+            "bearing_deg": bearing_deg,
+            "tilt_deg": tilt_deg,
+        })
+
     def send_set_color(self, name: str, color: list) -> bool:
         """color: [r, g, b], each 0..1."""
         return self._send_cmd({

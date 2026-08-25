@@ -249,8 +249,17 @@ class GuiConfig:
     # If set, override the radio materials' scattering coefficient property
     radio_material_scattering_coefficient: float | None = None
 
-    # Antenna arrays
-    tx_array: AntennaArrayConfig = field(default_factory=AntennaArrayConfig)
+    # Antenna arrays. tx (gNB) defaults to the tr38901 directional element
+    # pattern to match khu-real-nr-sionna-pooled.cc's ThreeGppAntennaModel --
+    # RET (bearing/tilt) only has a physical effect with a directional
+    # pattern (confirmed empirically: an isotropic element leaves tilt/
+    # bearing changes at <1dB regardless of angle). rx (UE) stays isotropic
+    # since UE orientation isn't tracked/meaningful in that scenario.
+    tx_array: AntennaArrayConfig = field(
+        default_factory=lambda: AntennaArrayConfig(
+            pattern_i=antenna_pattern_registry.list().index("tr38901")
+        )
+    )
     rx_array: AntennaArrayConfig = field(default_factory=AntennaArrayConfig)
 
     # Rendering

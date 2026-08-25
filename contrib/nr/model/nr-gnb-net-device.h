@@ -8,12 +8,16 @@
 #include "nr-fh-control.h"
 #include "nr-handover-algorithm.h"
 #include "nr-net-device.h"
+#include "nr-phy-mac-common.h"
 #include "nr-rrc-sap.h"
+#include "sfnsf.h"
 
 #include "ns3/deprecated.h"
 #include "ns3/nr-export.h"
 #include "ns3/traced-callback.h"
 #include <ns3/oran-interface.h>
+
+#include <array>
 
 namespace ns3
 {
@@ -29,6 +33,10 @@ class NrGnbComponentCarrierManager;
 class BwpManagerGnb;
 class NrMacScheduler;
 class NrBearerStatsCalculator;
+// NrSchedulingCallbackInfo is declared at global scope by nr-phy-mac-common.h
+// (included above), not inside namespace ns3 -- do not forward-declare it
+// here or unqualified lookup inside this namespace will find a shadowing,
+// permanently-incomplete ns3::NrSchedulingCallbackInfo instead.
 
 /**
  * @ingroup gnb
@@ -262,6 +270,17 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
      */
     Ptr<KpmIndicationMessage> BuildRicIndicationMessageCuCp(std::string plmId);
     /**
+     * Build the DU indication message: cell-level PRB utilization (from
+     * NotifySlotDataStats, the same usedReg/availableRb*availableSym ratio
+     * scratch/khu-ret-experiment.cc already uses for its cell_kpi dashboard)
+     * and MCS distribution (from NotifyDlScheduling), both accumulated since
+     * the previous report and reset here. Per-UE DU stats (SINR bins, RLC
+     * buffer occupancy, retransmission counts) are not wired yet and are
+     * reported as 0.
+     * @return the encoded message
+     */
+    Ptr<KpmIndicationMessage> BuildRicIndicationMessageDu(std::string plmId);
+    /**
      * Zero-pad an IMSI to the 5-character string format the E2SM-KPM UE id
      * field expects.
      * @return the padded IMSI string
@@ -275,6 +294,48 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
      * update, so the tilt has a real propagation effect.
      */
     void ApplyRetControl(double tiltDeg, bool hasBearing, double bearingDeg);
+
+    /** Cell energy state driven by E2SM-RC style 300 (Energy_state) control. */
+    enum class EnergyState
+    {
+        ON,
+        OFF,
+        SLEEP
+    };
+
+    /**
+     * Apply an energy-state control decision to every BWP PHY of this cell
+     * by scaling NrGnbPhy's TxPower attribute, which feeds directly into the
+     * transmitted PSD (NrPhy::GetTxPowerSpectralDensity), so this has a real
+     * effect on what UEs receive -- not just a reporting flag. The original
+     * per-CC TX power is saved on the first OFF/SLEEP transition and
+     * restored on the next ON transition.
+     */
+    void ApplyEnergyState(EnergyState state);
+
+    /**
+     * Sink for NrGnbMac's "DlScheduling" trace source (one connection per
+     * component carrier, see DoInitialize). Buckets NrSchedulingCallbackInfo::m_mcs
+     * into the MCS histogram consumed and reset by BuildRicIndicationMessageDu.
+     */
+    void NotifyDlScheduling(NrSchedulingCallbackInfo info);
+
+    /**
+     * Sink for NrGnbPhy's "SlotDataStats" trace source (Config::Connect
+     * wildcard in DoInitialize, same as RecvMeasurementReport -- filtered to
+     * this device's own cellId). Accumulates usedReg and
+     * availableRb*availableSym, the same quantities
+     * scratch/khu-ret-experiment.cc's ReportKpiToInflux already divides to
+     * get prbUtilizationPct for its cell_kpi dashboard.
+     */
+    void NotifySlotDataStats(const SfnSf& sfnSf,
+                             uint32_t scheduledUe,
+                             uint32_t usedReg,
+                             uint32_t usedSym,
+                             uint32_t availableRb,
+                             uint32_t availableSym,
+                             uint16_t bwpId,
+                             uint16_t cellId);
 
     Ptr<NrGnbRrc> m_rrc;
     Ptr<NrHandoverAlgorithm> m_handoverAlgorithm; ///< the handover algorithm
@@ -297,7 +358,20 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
     double m_e2Periodicity; //!< KPM indication period in seconds
     bool m_sendCuUp;        //!< send the CU-UP indication message
     bool m_sendCuCp;        //!< send the CU-CP indication message
+    bool m_sendDu;          //!< send the DU indication message (PRB utilization / MCS)
     bool m_reducedPmValues; //!< use the reduced PM value set in indications
+
+    EnergyState m_energyState{EnergyState::ON}; //!< current cell energy state
+    double m_savedTxPowerDbm{0.0}; //!< per-cell TX power saved before OFF/SLEEP, for restore
+    bool m_txPowerSaved{false};    //!< whether m_savedTxPowerDbm holds a valid saved value
+
+    /**
+     * DU-report accumulators fed by NotifySlotDataStats/NotifyDlScheduling,
+     * consumed and reset every E2Periodicity by BuildRicIndicationMessageDu.
+     */
+    uint64_t m_duPrbUsedAccum{0};          //!< sum of usedReg since the last DU report
+    uint64_t m_duPrbCapacityAccum{0};      //!< sum of availableRb*availableSym since the last report
+    std::array<uint64_t, 6> m_duMcsBins{}; //!< MCS histogram: [0-4],[5-9],...,[25-29]
     bool m_stopSendingMessages;
     bool m_isReportingEnabled;
     bool m_hasValidSubscription{false}; //!< a RIC subscription has been processed

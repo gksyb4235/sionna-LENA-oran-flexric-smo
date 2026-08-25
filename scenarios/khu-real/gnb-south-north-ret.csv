@@ -1,0 +1,22 @@
+# Two-gNB variant for the RET experiment. gnb_north is left neutral (0/0,
+# explicit columns below) as a "silent" neighbor cell -- its only purpose is
+# to exist as an A3 comparison target so NrA3RsrpHandoverAlgorithm's
+# EVENT_A3 measurement report can fire at all (RecvMeasurementReport never
+# fires with a single gNB, since there's no neighbour to ever be "stronger
+# than serving" -- see nr-a3-rsrp-handover-algorithm.cc:103,
+# nr-ue-rrc.cc:2330/2559 for why PERIODICAL reporting isn't an option in
+# this NR module).
+#
+# gnb_south has NO bearing_deg/tilt_deg columns (4-field row) on purpose --
+# that leaves it NaN in code, which falls back to the CLI
+# --gnbInitTiltDeg/--gnbInitBearingDeg flags, so a bearing/tilt sweep for
+# the south beam can be driven by CLI flags per run without editing this
+# file, while gnb_north's explicit 0/0 stays fixed regardless of those
+# flags. Optimal south aim at the playground centroid, computed in an
+# earlier session: bearing~57deg, tilt~28deg.
+#
+# Positions are the same as gnbs-ret.csv (KHU_Cropped_Sionna_RT.xml scene,
+# z = terrain height + 25m mast).
+gnb_id,x,y,z,bearing_deg,tilt_deg
+gnb_south,-362.71,78.75,82.62
+gnb_north,-326.90,406.60,57.23,0,0

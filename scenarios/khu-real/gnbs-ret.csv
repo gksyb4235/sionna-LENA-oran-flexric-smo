@@ -2,15 +2,22 @@
 # older flat-ish Kyunghee.xml). Chosen from the pedestrian CSV's spatial
 # clusters (ped_flow_c00/c01/c02 groups): c02 concentrates south around
 # (-367,158), c01 concentrates north around (-273,453), and the dominant
-# c00 flow spans the whole corridor between them -- so two gNBs at the south
+# c00 flow spans the whole corridor between them -- so gNBs at the south
 # and north ends give the same "cover the corridor between two sectors"
-# layout as the original kyunghee-demo-gnbs-ret.csv.
+# layout as the original kyunghee-demo-gnbs-ret.csv. A third gNB was added
+# in the middle of the corridor (-383.51, 219.46, 72.65).
+#
+# Naming here is label-only for now: gNB5G/gNB_4G_1/gNB_4G_2 all still run
+# the same nr-module NR PHY at the same 3.5GHz band (see khu-real-nr-sionna
+# -pooled.cc's centralFrequencyBand1) -- no actual heterogeneous LTE/NR RAT
+# split has been implemented yet.
 #
 # z = local terrain height (ray-cast straight down from above at this x,y in
 # KHU_Cropped_Sionna_RT.xml) + 25m mast, confirmed not embedded in geometry
 # (nearest surface in every +-x/+-y/+-z probe direction is >20m away).
-# bearing_deg: 0 = +x axis, CCW. gnb_south faces north (+y=90) toward the
-# corridor and gnb_north, gnb_north faces south (-y=-90) back toward it.
+# bearing_deg: 0 = +x axis, CCW. gNB5G faces north (+y=90) toward the
+# corridor and gNB_4G_1, gNB_4G_1 faces south (-y=-90) back toward it.
 gnb_id,x,y,z,bearing_deg,tilt_deg
-gnb_south,-362.71,78.75,82.62
-gnb_north,-326.90,406.60,57.23
+gNB_5G,-362.71,78.75,82.62,10.0,15.0
+gNB_4G_1,-326.90,406.60,57.23,0,15.0
+gNB_4G_2,-381.23,219.78,67.50,0,15.0

@@ -698,6 +698,20 @@ class SionnaRtGui:
             pitch = float(np.deg2rad(tilt_deg)) if num_v == 1 else 0.0
             obj.orientation = [yaw, pitch, 0.0]
 
+            # obj.orientation above only updates the underlying Sionna scene
+            # object -- the gray direction arrow drawn on the "Transmitters"
+            # point cloud is a separate Polyscope vector quantity that's only
+            # (re)computed when set_or_update_radio_devices_polyscope() runs
+            # (see sionna_utils.py's rd_orientations), so without this call
+            # the arrow stays frozen at whatever orientation was in effect
+            # the last time a transmitter was added/repositioned (usually
+            # the all-zero default), even though the Selection panel's
+            # "Orientation (angles)" text (which reads obj.orientation
+            # directly) is already correct.
+            set_or_update_radio_devices_polyscope(
+                self.scene.transmitters, True, self
+            )
+
         self.gnb_antenna_state[name] = {
             "bearing_deg": bearing_deg,
             "tilt_deg": tilt_deg,
@@ -710,6 +724,33 @@ class SionnaRtGui:
         # an incidental one, so it should always refresh a RadioMap that is
         # already being shown -- otherwise the map silently goes stale on
         # every tilt command in this deployment's config.
+        if self.radio_map is not None:
+            self.set_radio_map(self.compute_radio_map(), show=True)
+
+    def set_gnb_orientation(self, name: str, bearing_deg: float, tilt_deg: float):
+        """Plain mechanical orientation update: rotate the named
+        transmitter's existing antenna array in place (no reshaping, no
+        electrical-tilt precoding vector -- see set_gnb_antenna_state for
+        that separate legacy path). This is what
+        khu-real-nr-sionna-pooled.cc's real per-gNB BearingAngle/
+        DowntiltAngle setup (and NrGnbNetDevice::ApplyRetControl at
+        runtime) should be paired with, since both are true mechanical
+        rotations of a real 2D planar array, not a single-column array's
+        precoding-based electrical tilt.
+        """
+        obj = self.scene.get(name) if self.scene is not None else None
+        if obj is None:
+            return
+        yaw = float(np.deg2rad(bearing_deg))
+        pitch = float(np.deg2rad(tilt_deg))
+        obj.orientation = [yaw, pitch, 0.0]
+
+        # Refresh the arrow + panel drawn on the "Transmitters" point cloud
+        # (see sionna_utils.py's set_or_update_radio_devices_polyscope) --
+        # like set_gnb_antenna_state, this doesn't happen automatically just
+        # from setting obj.orientation.
+        set_or_update_radio_devices_polyscope(self.scene.transmitters, True, self)
+
         if self.radio_map is not None:
             self.set_radio_map(self.compute_radio_map(), show=True)
 

@@ -68,7 +68,6 @@ def selection_gui(
     if selected_type in (SelectionType.Transmitter, SelectionType.Receiver):
         rd = selected_object
         array = gui.scene.tx_array if is_transmitter else gui.scene.rx_array
-        pattern = array.antenna_pattern
 
         changed, rd.color = psim.ColorEdit3(
             f"{selected_type.value} '{selected_object.name}'\n",
@@ -94,25 +93,52 @@ def selection_gui(
         psim.NewLine()
 
         # TODO: do not trigger constant GPU -> CPU transfers
+        orientation_deg = np.rad2deg(rd.orientation.numpy()).squeeze()
         if psim.TreeNodeEx(
             "Characteristics:##selection", psim.ImGuiTreeNodeFlags_DefaultOpen
         ):
             psim.Text(
                 f"Position [m]: {vec_str(rd.position.numpy())}\n"
-                f"Orientation (angles): {vec_str(rd.orientation.numpy())}\n"
+                f"Bearing [deg]: {orientation_deg[0]:.2f}\n"
+                f"Downtilt [deg]: {orientation_deg[1]:.2f}\n"
                 f"Velocity [m/s]: {vec_str(rd.velocity.numpy())}\n"
                 + (f"Transmit power [W]: {rd.power[0]:.2f}\n" if is_transmitter else "")
             )
             psim.TreePop()
 
+        if is_transmitter:
+            psim.Spacing()
+            if psim.TreeNodeEx(
+                "Handover:##selection", psim.ImGuiTreeNodeFlags_DefaultOpen
+            ):
+                # GUI-side display/editing only -- not (yet) relayed back to
+                # ns-3's NrA3RsrpHandoverAlgorithm, which currently only
+                # takes TimeToTrigger/Hysteresis from --handoverTtt/
+                # --handoverHysteresis at simulation startup. Defaults here
+                # match khu-real-nr-sionna-pooled.cc's own defaults (256ms /
+                # 3dB) so the numbers agree until that link exists.
+                state = gui.gnb_antenna_state.setdefault(
+                    selected_object.name, {}
+                )
+                state.setdefault("ttt_ms", 256.0)
+                state.setdefault("hysteresis_db", 3.0)
+                changed_ttt, state["ttt_ms"] = psim.InputFloat(
+                    "TTT [ms]##selection", state["ttt_ms"]
+                )
+                changed_hys, state["hysteresis_db"] = psim.InputFloat(
+                    "Hysteresis [dB]##selection", state["hysteresis_db"]
+                )
+                psim.TreePop()
+
         psim.Spacing()
         if psim.TreeNodeEx(
             "Antenna array:##selection", psim.ImGuiTreeNodeFlags_DefaultOpen
         ):
+            array_cfg = gui.cfg.tx_array if is_transmitter else gui.cfg.rx_array
             psim.Text(
                 f"Type: {type(array).__name__}\n"
                 f"Array size: {dr.width(array.normalized_positions)}\n"
-                f"Pattern: {type(pattern).__name__}\n"
+                f"Pattern: {array_cfg.pattern}\n"
             )
 
             psim.TreePop()

@@ -59,6 +59,7 @@ public:
   void AddDuCellPmItem (
       long macPduCellSpecific, long macPduInitialCellSpecific, long macQpskCellSpecific,
       long mac16QamCellSpecific, long mac64QamCellSpecific, double prbUtilizationDl,
+      long totalPrbDl,
       long macRetxCellSpecific, long macVolumeCellSpecific, long macMac04CellSpecific,
       long macMac59CellSpecific, long macMac1014CellSpecific, long macMac1519CellSpecific,
       long macMac2024CellSpecific, long macMac2529CellSpecific, long macSinrBin1CellSpecific,

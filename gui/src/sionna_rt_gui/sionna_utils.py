@@ -132,6 +132,7 @@ def set_or_update_radio_devices_polyscope(
     rd_orientations[is_default, :] = 0
 
     sphere_radius = struct.get_radius()
+
     struct.add_vector_quantity(
         name + "_orientation",
         rd_orientations,
@@ -141,6 +142,12 @@ def set_or_update_radio_devices_polyscope(
         radius=0.3 * sphere_radius / ps.get_length_scale(),
         length=2.5 * sphere_radius / ps.get_length_scale(),
     )
+    if is_transmitter:
+        # gNBs additionally get a flat, vertically-elongated rectangular
+        # panel (like a real antenna panel) alongside the direction arrow --
+        # the panel's normal points the same way the arrow does (local +x
+        # rotated by rd.orientation, i.e. bearing/tilt).
+        add_transmitter_panels_to_polyscope(radio_devices, sphere_radius, gui)
 
     # Also update per-point colors
     rd_colors = np.array([rd.color for rd in radio_devices.values()])
@@ -149,6 +156,63 @@ def set_or_update_radio_devices_polyscope(
         rd_colors,
         enabled=True,
     )
+
+
+def add_transmitter_panels_to_polyscope(
+    radio_devices: dict[str, rt.RadioDevice],
+    sphere_radius: float,
+    gui: "SionnaRtGui",
+):
+    """Draws each transmitter as a flat rectangular panel (tall/narrow, like
+    a real antenna panel) whose normal points along the device's local +x
+    axis after `rd.orientation` (bearing, tilt, 0) is applied -- i.e. the
+    same direction the "Transmitters_orientation" arrow also points.
+
+    Rebuilt from scratch every call (positions/orientations can all change
+    between calls, e.g. on a RET tilt update), so this is a single merged
+    mesh across all transmitters rather than one Polyscope structure per
+    device.
+    """
+    name = "Transmitter_panels"
+    if not radio_devices:
+        if ps.has_surface_mesh(name):
+            ps.get_surface_mesh(name).remove()
+        return
+
+    half_width = 1.0 * sphere_radius  # horizontal extent (narrow)
+    half_height = 3.0 * sphere_radius  # vertical extent (tall)
+    # Local-frame corners of the panel, lying in the plane perpendicular to
+    # local +x (the boresight/normal direction), ordered CCW as seen from
+    # +x looking back toward the origin so the front face culls correctly.
+    corners_local = np.array(
+        [
+            [0.0, -half_width, -half_height],
+            [0.0, -half_width, half_height],
+            [0.0, half_width, half_height],
+            [0.0, half_width, -half_height],
+        ]
+    )
+
+    vertices = []
+    faces = []
+    colors = []
+    for rd in radio_devices.values():
+        pos = rd.position.numpy().T[0]
+        rotation = rotation_matrix(rd.orientation).numpy()[:, :, 0]  # (3, 3)
+        corners_world = pos + corners_local @ rotation.T
+        base = len(vertices)
+        vertices.extend(corners_world.tolist())
+        faces.append([base + 0, base + 1, base + 2])
+        faces.append([base + 0, base + 2, base + 3])
+        colors.extend([rd.color] * 4)
+
+    struct = ps.register_surface_mesh(
+        name, np.array(vertices), np.array(faces), color=(0.6, 0.6, 0.6)
+    )
+    struct.add_to_group(gui.ps_groups["rd"])
+    struct.set_ignore_slice_plane(DEFAULT_SLICE_PLANE_NAME, True)
+    struct.set_back_face_policy("identical")
+    struct.add_color_quantity(name + "_colors", np.array(colors), defined_on="vertices", enabled=True)
 
 
 def add_radio_map_to_polyscope(

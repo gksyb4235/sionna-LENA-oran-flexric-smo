@@ -121,7 +121,9 @@ class InfluxWriter:
                        num_ues: int, avg_rsrp_dbm: float, ho_in_count: int,
                        ho_out_count: int, pingpong_count: int,
                        aggregate_throughput_mbps: float,
-                       prb_utilization_pct: float | None = None) -> bool:
+                       prb_utilization_pct: float | None = None,
+                       tx_power_watts: float | None = None,
+                       energy_efficiency_mbps_per_w: float | None = None) -> bool:
         fields = {
             "tx_power_dbm": float(tx_power_dbm),
             "ret_tilt_deg": float(ret_tilt_deg),
@@ -129,12 +131,21 @@ class InfluxWriter:
             "ttt_ms": float(ttt_ms),
             "hysteresis_db": float(hysteresis_db),
             "num_ues": int(num_ues),
-            "avg_rsrp_dbm": float(avg_rsrp_dbm),
             "ho_in_count": int(ho_in_count),
             "ho_out_count": int(ho_out_count),
             "pingpong_count": int(pingpong_count),
             "aggregate_throughput_mbps": float(aggregate_throughput_mbps),
         }
+        # No UE attached this period -> nothing was measured, so omit the
+        # field entirely (InfluxDB/Grafana render a gap) instead of writing
+        # a literal 0.0, which previously plotted as a fake "0 dBm" reading.
+        # Callers signal this by passing NaN (avg_rsrp_dbm != avg_rsrp_dbm).
+        if avg_rsrp_dbm == avg_rsrp_dbm:
+            fields["avg_rsrp_dbm"] = float(avg_rsrp_dbm)
         if prb_utilization_pct is not None:
             fields["prb_utilization_pct"] = float(prb_utilization_pct)
+        if tx_power_watts is not None:
+            fields["tx_power_watts"] = float(tx_power_watts)
+        if energy_efficiency_mbps_per_w is not None:
+            fields["energy_efficiency_mbps_per_w"] = float(energy_efficiency_mbps_per_w)
         return self.write_point("cell_kpi", {"cell": cell}, fields)

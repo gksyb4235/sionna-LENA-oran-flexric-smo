@@ -142,12 +142,14 @@ else()
     source_files
     model/sionna-rt-channel-model.cc
     model/sionna-rt-spectrum-propagation-loss-model.cc
+    model/sionna-lookup-channel-model.cc
   )
   list(
     APPEND
     header_files
     model/sionna-rt-channel-model.h
     model/sionna-rt-spectrum-propagation-loss-model.h
+    model/sionna-lookup-channel-model.h
   )
   add_compile_definitions(SIONNA_RT=1)
   set(sionna_test_sources

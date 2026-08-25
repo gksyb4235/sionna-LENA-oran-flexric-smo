@@ -3,25 +3,54 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 /**
- * @file khu-real-nr-sionna.cc
- * @brief NR + official Sionna RT channel model against the real KHU campus
- * scene, with real gNB positions and a real moving UE trace read from CSV.
+ * @file khu-real-nr-sionna-pooled.cc
+ * @brief Slot-pooled variant of khu-real-nr-sionna.cc: instead of creating one
+ * ns-3 UE node/NR device per distinct ue_id in the trace CSV (223 for
+ * ue_positions_seed0.csv, each participating in every Sionna RT channel
+ * update for the whole sim regardless of whether it is actually active at
+ * that moment), this file creates a fixed-size *pool* of UE devices sized to
+ * the trace's true maximum concurrent active-UE count, and reassigns real
+ * trace UE identities onto free pool slots as they enter/leave their active
+ * windows.
  *
- * This is the NR-module equivalent of ns-O-RAN-flexric's
- * scratch/scenario-zero-sionna-kyunghee.cc (legacy mmwave module + TU
- * Berlin ZMQ/protobuf Sionna bridge). The CSV parsing (gNB positions,
- * UE trace samples) is ported near-verbatim from that file; the
- * NR/channel/traffic setup is adapted from contrib/nr/examples/
- * cttc-nr-demo-sionna-rt.cc, replacing its GridScenarioHelper static
- * topology with the CSV-driven one below.
+ * This is a separate scratch target from khu-real-nr-sionna.cc -- nothing in
+ * ns-3 core, contrib/nr, or the original scenario file is touched.
  *
- * gNB CSV: gnb_id,x,y,z[,bearing_deg,tilt_deg]
- * UE trace CSV: time_s,ue_id,x,y,z,active
+ * Slot assignment is precomputed once, offline, before Simulator::Run(), via
+ * classic interval-graph-coloring (greedy, earliest-available-slot): sort all
+ * (trace, active-window) sessions by start time, reuse the slot whose
+ * previous session ended earliest if it's already free by the new session's
+ * start, otherwise allocate a new slot. This yields the minimum possible
+ * pool size (== the trace's true max concurrent count) and a fully static
+ * schedule, so no runtime free-list/allocator is needed during Simulator::Run().
  *
- * RET (bearing_deg/tilt_deg) is parsed but not yet applied to the NR
- * antenna model -- that dispatch path doesn't exist on the NR side yet
- * (see NR_ROADMAP.md-equivalent notes); this scenario is for topology
- * and raw simulation speed, not RET validation.
+ * When a slot's device is used for the very first time, it gets a clean
+ * initial attach via NrHelper::AttachToGnb to the geometrically closest gNB
+ * (the "just powered on, camping on the nearest cell" case -- no prior RRC
+ * state to worry about). NrHelper::AttachToMaxRsrpGnb (true RSRP-based
+ * attach) was tried here first, since it's the more physically accurate
+ * choice, but it reliably segfaults when invoked dynamically mid-simulation
+ * in this NR fork -- upstream it only seems to be exercised as a one-shot
+ * call for every UE before Simulator::Run() begins, not as a per-device call
+ * fired from a later scheduled event. Distance-based attach is a reasonable
+ * stand-in here: with only 2 isotropic, non-RET gNBs (RET/tilt isn't applied
+ * to the NR antenna model yet), nearest-by-distance and strongest-by-RSRP
+ * pick the same cell in practice, and it's the same mechanism
+ * khu-real-nr-sionna.cc's own baseline already uses for its initial
+ * deployment.
+ *
+ * When a slot is *reused* by a later session, the device is already
+ * RRC-connected somewhere from its previous occupant, and AttachToGnb isn't
+ * safe to call a second time on an already-attached device -- it just
+ * re-registers the RNTI without releasing the old context, leaking stale
+ * state on the previous serving gNB. Reuse therefore goes through
+ * NrHelper::HandoverRequest instead (the same public, well-tested X2
+ * handover path NrA3RsrpHandoverAlgorithm uses at runtime), targeted at the
+ * geometrically closest gNB. These reuse-handovers are intentionally
+ * excluded from the ho_count/ping-pong KPI bookkeeping below (they're slot
+ * housekeeping, not a real person's mobility-driven handover) but do briefly
+ * appear in the [HO] log lines fired by NrGnbRrc's own
+ * HandoverStart/HandoverEndOk traces.
  */
 
 #include "ns3/antenna-module.h"
@@ -33,6 +62,7 @@
 #include "ns3/mobility-module.h"
 #include "ns3/nr-module.h"
 #include "ns3/point-to-point-module.h"
+#include "ns3/sionna-lookup-channel-model.h"
 #include "ns3/sionna-rt-channel-model.h"
 #include "ns3/sionna-rt-spectrum-propagation-loss-model.h"
 
@@ -41,12 +71,13 @@
 #include <cmath>
 #include <fstream>
 #include <limits>
+#include <queue>
 #include <sstream>
 #include <utility>
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("KhuRealNrSionna");
+NS_LOG_COMPONENT_DEFINE("KhuRealNrSionnaPooled");
 
 struct UeTraceSample
 {
@@ -213,22 +244,6 @@ LoadGnbPositions(const std::string& path)
     return positions;
 }
 
-
-static Vector
-InitialPosition(const UeTrace& trace)
-{
-    Vector position = trace.samples.front().position;
-    for (const auto& sample : trace.samples)
-    {
-        if (sample.time > 0.0)
-        {
-            break;
-        }
-        position = sample.position;
-    }
-    return position;
-}
-
 static void
 SetSionnaRtPathSolverConfig(const BandwidthPartInfoPtrVector& allBwps,
                             const SionnaRtChannelModel::RtPathSolverConfig& rtPathSolverConfig)
@@ -255,19 +270,7 @@ SetSionnaRtPathSolverConfig(const BandwidthPartInfoPtrVector& allBwps,
     }
 }
 
-// ---- Optional live GUI bridge ----
-//
-// Reuses ns-O-RAN-flexric's Polyscope GUI ZMQ protocol as-is: scratch/
-// zmq_bridge.py here is an unmodified copy of contrib/sionna/gui/src/
-// sionna_rt_gui/zmq_bridge.py's ZMQBridgeClient (it has zero dependencies
-// on the rest of that package -- json/threading/time/zmq only -- so it's
-// copied standalone rather than imported through sionna_rt_gui, which
-// would otherwise pull in that package's __init__.py and, transitively,
-// polyscope). The GUI process (run.py, its own .venv, unmodified) must
-// already be running and listening on guiHost:5600/5601 -- see
-// ns-O-RAN-flexric/README.md Terminal 1. This scenario just takes over the
-// "publisher" role that kyunghee_server.py used to play: same protocol,
-// same ports, different process pushing the updates.
+// ---- Optional live GUI bridge (unchanged protocol from khu-real-nr-sionna.cc) ----
 
 static py::object
 ConnectGuiZmqBridge(const std::string& guiSrc, const std::string& guiHost)
@@ -285,9 +288,6 @@ ConnectGuiZmqBridge(const std::string& guiSrc, const std::string& guiHost)
     return client;
 }
 
-// scratch/influx_writer.py is a standalone module (stdlib-only, no
-// polyscope/GUI dependency) so it can be imported regardless of whether
-// --guiSrc is set.
 static py::object
 ConnectInfluxWriter(const std::string& influxSrc,
                     const std::string& influxHost,
@@ -327,6 +327,26 @@ SendGnbPositionToGui(py::object& client, const std::string& name, const Vector& 
 }
 
 static void
+SendGnbOrientationToGui(py::object& client,
+                        const std::string& name,
+                        double bearingDeg,
+                        double tiltDeg)
+{
+    if (client.is_none())
+    {
+        return;
+    }
+    try
+    {
+        client.attr("send_gnb_orientation")(name, bearingDeg, tiltDeg);
+    }
+    catch (const py::error_already_set& error)
+    {
+        NS_LOG_UNCOND("[gui] send_gnb_orientation failed (ignoring): " << error.what());
+    }
+}
+
+static void
 SendUePositionToGui(py::object& client, const std::string& name, const Vector& pos)
 {
     if (client.is_none())
@@ -343,7 +363,6 @@ SendUePositionToGui(py::object& client, const std::string& name, const Vector& p
     }
 }
 
-// color: (r,g,b) in [0,1], reusing Vector as a cheap RGB triple.
 static void
 SendColorToGui(py::object& client, const std::string& name, const Vector& color)
 {
@@ -361,9 +380,6 @@ SendColorToGui(py::object& client, const std::string& name, const Vector& color)
     }
 }
 
-// Fixed, high-contrast palette so each gNB (and, through it, whichever UEs
-// are currently served by that gNB) gets a visually distinct color in the
-// GUI. Cycles if there are more gNBs than colors.
 static const std::vector<Vector> kCellColorPalette = {
     Vector(0.90, 0.20, 0.20), // red
     Vector(0.20, 0.45, 0.90), // blue
@@ -373,19 +389,11 @@ static const std::vector<Vector> kCellColorPalette = {
     Vector(0.20, 0.80, 0.80), // teal
 };
 
-// ---- Handover event logging ----
-//
-// NrGnbRrc::HandoverStart/HandoverEndOk fire with just (imsi, cellId, rnti[,
-// targetCellId]) -- no position -- so to see *where* the handover happened
-// we look the UE node up by IMSI in a small global map filled once at
-// mobility setup time and read its live position when the trace fires.
-// The same maps also drive the GUI's per-UE color: on every handover, the
-// UE's point is recolored to match its new serving gNB's color, so serving
-// cell is visible at a glance instead of only in the log.
+// ---- Handover event logging (unchanged from khu-real-nr-sionna.cc) ----
 static std::map<uint64_t, Ptr<Node>> g_imsiToUeNode;
-static std::map<uint64_t, std::string> g_imsiToUeName;
+static std::map<uint64_t, std::string> g_imsiToUeName; // GUI display name, keyed by slot id
 static std::map<uint16_t, Vector> g_cellIdToColor;
-static py::object* g_guiClient = nullptr; // set once in main(); nullptr if GUI disabled
+static py::object* g_guiClient = nullptr;
 
 static void
 RecolorUeForCell(uint64_t imsi, uint16_t cellId)
@@ -403,19 +411,13 @@ RecolorUeForCell(uint64_t imsi, uint16_t cellId)
     SendColorToGui(*g_guiClient, nameIt->second, colorIt->second);
 }
 
-// ---- InfluxDB KPI reporting ----
-//
-// Feeds the "ue_kpi"/"cell_kpi" measurements read by monitoring/grafana's
-// dashboards (see scratch/influx_writer.py for the schema). Kept entirely
-// separate from the GUI/E2 code paths above -- this just adds more
-// Config::Connect listeners on the same trace sources plus a periodic
-// poll, none of which touch the channel/PHY computation.
-static py::object* g_influxClient = nullptr; // nullptr if disabled
+// ---- InfluxDB KPI reporting (unchanged schema from khu-real-nr-sionna.cc) ----
+static py::object* g_influxClient = nullptr;
 
 struct UeKpiState
 {
-    std::string name;
-    std::map<uint16_t, double> rsrpDbm; //!< last RSRP per cellId (serving + neighbours)
+    std::string name; //!< real trace ue_id currently occupying this slot ("" if idle)
+    std::map<uint16_t, double> rsrpDbm;
     Ptr<UdpServer> serverApp;
     uint64_t lastRxPackets = 0;
     uint32_t hoCount = 0;
@@ -427,32 +429,54 @@ struct UeKpiState
     uint8_t dlMcs = 0;
 };
 
-static std::map<uint64_t, UeKpiState> g_ueKpi; //!< keyed by IMSI
+static std::map<uint64_t, UeKpiState> g_ueKpi; //!< keyed by IMSI (== keyed by slot, 1 IMSI/slot for life)
 
 struct CellKpiState
 {
     std::string name;
     double txPowerDbm = 0;
-    Ptr<NetDevice> gnbDev; //!< to read the live RET tilt/bearing at report time
+    Ptr<NetDevice> gnbDev;
     uint32_t hoInCount = 0;
     uint32_t hoOutCount = 0;
     uint32_t pingPongCount = 0;
-    uint64_t prbUsedAccum = 0;     //!< sum of usedReg since the last report, reset each report
-    uint64_t prbCapacityAccum = 0; //!< sum of availableRb*availableSym since the last report
+    uint64_t prbUsedAccum = 0;
+    uint64_t prbCapacityAccum = 0;
 };
 
-static std::map<uint16_t, CellKpiState> g_cellKpi; //!< keyed by cellId
+static std::map<uint16_t, CellKpiState> g_cellKpi;
 
-// rnti is only unique within a single cell, not simulation-wide; keyed on
-// (cellId, rnti) where the trace provides a cellId, and on rnti alone (best
-// effort, most recently seen owner wins) where it doesn't (CqiFeedbackTrace).
 static std::map<std::pair<uint16_t, uint16_t>, uint64_t> g_cellRntiToImsi;
 static std::map<uint16_t, uint64_t> g_rntiToImsi;
 
-static std::map<uint64_t, uint16_t> g_pendingHoSourceCell; //!< IMSI -> source cell of an in-flight HO
+static std::map<uint64_t, uint16_t> g_pendingHoSourceCell;
 static double g_handoverTtTMs = 0.0;
 static double g_handoverHysteresisDb = 0.0;
 static constexpr double kPingPongWindowSec = 10.0;
+
+// Slot reassignment handovers (khu-real-nr-sionna-pooled.cc's own housekeeping,
+// not a real person's mobility) are marked here for one HandoverEndOk callback
+// so the KPI bookkeeping below can skip ho_count/ping-pong accounting for them
+// while still letting the [HO] log lines and GUI recolor fire normally.
+static std::set<uint64_t> g_suppressNextHoKpi;
+
+// Populates the RNTI->IMSI lookup the moment a device gets a working RRC
+// connection (fresh attach or handover target), instead of waiting for the
+// first RecvMeasurementReport. NrA3RsrpHandoverAlgorithm's default measConfig
+// is event-triggered (A3) only, not periodic, so a UE that never gets close
+// to a cell boundary can go its whole session without ever sending one --
+// meanwhile it's happily receiving real downlink traffic on a real MCS the
+// whole time. Without this, every fresh RNTI (which pool slot reuse mints far
+// more often than the non-pooled baseline, since every reassignment gets a
+// new RNTI) stays invisible to RecordDlSinrForKpi/RecordCqiFeedbackForKpi
+// until/unless a measurement report happens to arrive, producing exactly the
+// "throughput is flowing but RSRP/SINR/MCS are stuck at their no-data
+// defaults" contradiction.
+static void
+RecordAttachForKpi(uint64_t imsi, uint16_t cellId, uint16_t rnti)
+{
+    g_cellRntiToImsi[{cellId, rnti}] = imsi;
+    g_rntiToImsi[rnti] = imsi;
+}
 
 static void
 RecordRsrpForKpi(uint64_t imsi, uint16_t cellId, uint16_t rnti, NrRrcSap::MeasurementReport report)
@@ -493,9 +517,6 @@ RecordDlSinrForKpi(uint16_t cellId, uint16_t rnti, double sinrLinear, uint16_t /
     {
         return;
     }
-    // NrUePhy::ComputeAvgSinr() returns a linear ratio (confirmed by
-    // NrUePhy::m_rlfDetectionEvent computing 10*log10(ComputeAvgSinr(...))
-    // for the same quantity), so convert to dB here.
     ueIt->second.dlSinrDb = (sinrLinear > 0.0) ? 10.0 * std::log10(sinrLinear) : -30.0;
 }
 
@@ -551,9 +572,9 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
         auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
         uint64_t imsi = ueDev->GetImsi();
         auto it = g_ueKpi.find(imsi);
-        if (it == g_ueKpi.end())
+        if (it == g_ueKpi.end() || it->second.name.empty())
         {
-            continue;
+            continue; // slot currently idle (between sessions) -- nothing to report
         }
         UeKpiState& ue = it->second;
         uint16_t servingCellId = ueDev->GetCellId();
@@ -564,7 +585,6 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
             uint64_t rx = ue.serverApp->GetReceived();
             uint64_t deltaPackets = (rx >= ue.lastRxPackets) ? (rx - ue.lastRxPackets) : 0;
             ue.lastRxPackets = rx;
-            // PacketSize is fixed at 1024 bytes on the UdpClient below.
             throughputMbps = (deltaPackets * 1024.0 * 8.0) / (intervalSec * 1e6);
         }
 
@@ -641,11 +661,6 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
         if (cell.gnbDev)
         {
             Ptr<NrGnbPhy> phy = NrHelper::GetGnbPhy(cell.gnbDev, 0);
-            // Read live, not the value cached at setup time: ApplyEnergyState
-            // (E2SM-RC style 300) changes NrGnbPhy's TxPower attribute at
-            // runtime, same as RET changes the antenna's tilt/bearing below --
-            // cell.txPowerDbm alone would silently show the initial value
-            // forever regardless of any energy-saving control applied since.
             DoubleValue txPowerVal;
             phy->GetAttribute("TxPower", txPowerVal);
             liveTxPowerDbm = txPowerVal.Get();
@@ -713,6 +728,7 @@ static void
 LogHandoverEndOk(uint64_t imsi, uint16_t cellId, uint16_t rnti)
 {
     RecolorUeForCell(imsi, cellId);
+    RecordAttachForKpi(imsi, cellId, rnti); // target cell mints a new RNTI on every handover
 
     uint16_t sourceCellId = 0;
     if (auto it = g_pendingHoSourceCell.find(imsi); it != g_pendingHoSourceCell.end())
@@ -720,12 +736,13 @@ LogHandoverEndOk(uint64_t imsi, uint16_t cellId, uint16_t rnti)
         sourceCellId = it->second;
         g_pendingHoSourceCell.erase(it);
     }
-    if (auto ueIt = g_ueKpi.find(imsi); ueIt != g_ueKpi.end())
+
+    const bool suppressKpi = g_suppressNextHoKpi.erase(imsi) > 0;
+
+    if (auto ueIt = g_ueKpi.find(imsi); ueIt != g_ueKpi.end() && !suppressKpi)
     {
         UeKpiState& ue = ueIt->second;
         double now = Simulator::Now().GetSeconds();
-        // Ping-pong: this handover reverses the immediately preceding one
-        // (B->A right after A->B) within a short window.
         ue.isPingPong = (ue.hoCount > 0) && (sourceCellId == ue.lastHoTarget) &&
                         (cellId == ue.lastHoSource) && (now - ue.lastHoTime) < kPingPongWindowSec;
         ue.hoCount++;
@@ -753,8 +770,114 @@ LogHandoverEndOk(uint64_t imsi, uint16_t cellId, uint16_t rnti)
         pos = it->second->GetObject<MobilityModel>()->GetPosition();
     }
     NS_LOG_UNCOND("[HO] t=" << Simulator::Now().GetSeconds() << "s END_OK imsi=" << imsi
-                            << " rnti=" << rnti << " now_serving_cell=" << cellId << " ue_pos=("
+                            << " rnti=" << rnti << " now_serving_cell=" << cellId
+                            << (suppressKpi ? " (slot-reuse, KPI-suppressed)" : "") << " ue_pos=("
                             << pos.x << "," << pos.y << "," << pos.z << ")");
+}
+
+// ---- Slot pool: sessions and interval-graph-coloring assignment ----
+
+/// One continuous active window of a single real trace UE.
+struct UeSession
+{
+    uint32_t traceIndex{0};
+    double start{0.0};
+    double end{0.0};
+    Vector startPosition;
+    uint32_t slot{0}; //!< filled in by AssignSlots()
+};
+
+static std::vector<std::pair<double, double>>
+ComputeActiveWindows(const UeTrace& trace, double simTimeSec, std::vector<Vector>* startPositions)
+{
+    std::vector<std::pair<double, double>> windows;
+    bool active = false;
+    double activeStart = 0.0;
+    Vector activeStartPos;
+    for (const auto& sample : trace.samples)
+    {
+        if (sample.time < 0.0)
+        {
+            active = sample.active;
+            if (active)
+            {
+                activeStart = 0.0;
+                activeStartPos = sample.position;
+            }
+            continue;
+        }
+        if (sample.active && !active)
+        {
+            active = true;
+            activeStart = sample.time;
+            activeStartPos = sample.position;
+        }
+        else if (!sample.active && active)
+        {
+            if (activeStart < simTimeSec)
+            {
+                windows.emplace_back(activeStart, std::min(sample.time, simTimeSec));
+                startPositions->push_back(activeStartPos);
+            }
+            active = false;
+        }
+    }
+    if (active && activeStart < simTimeSec)
+    {
+        windows.emplace_back(activeStart, simTimeSec);
+        startPositions->push_back(activeStartPos);
+    }
+    return windows;
+}
+
+/// Builds all sessions across all traces, then assigns each one a pool slot
+/// via greedy interval-graph-coloring (earliest-freed slot wins). Returns the
+/// sessions (sorted by start time, each with its `slot` field filled in) and
+/// sets `poolSize` to the minimum number of slots this required -- i.e. the
+/// trace's true max-concurrent-active-UE count.
+static std::vector<UeSession>
+BuildSessionsAndAssignSlots(const std::vector<UeTrace>& traces, double simTimeSec,
+                            uint32_t* poolSize)
+{
+    std::vector<UeSession> sessions;
+    for (uint32_t t = 0; t < traces.size(); ++t)
+    {
+        std::vector<Vector> startPositions;
+        auto windows = ComputeActiveWindows(traces[t], simTimeSec, &startPositions);
+        for (uint32_t w = 0; w < windows.size(); ++w)
+        {
+            UeSession session;
+            session.traceIndex = t;
+            session.start = windows[w].first;
+            session.end = windows[w].second;
+            session.startPosition = startPositions[w];
+            sessions.push_back(session);
+        }
+    }
+
+    std::stable_sort(sessions.begin(), sessions.end(),
+                     [](const UeSession& a, const UeSession& b) { return a.start < b.start; });
+
+    // min-heap of (end time, slot id) for slots currently in use.
+    using FreeAtEntry = std::pair<double, uint32_t>;
+    std::priority_queue<FreeAtEntry, std::vector<FreeAtEntry>, std::greater<>> freeAt;
+    uint32_t nextSlot = 0;
+    for (auto& session : sessions)
+    {
+        if (!freeAt.empty() && freeAt.top().first <= session.start)
+        {
+            session.slot = freeAt.top().second;
+            freeAt.pop();
+        }
+        else
+        {
+            session.slot = nextSlot++;
+        }
+        freeAt.push({session.end, session.slot});
+    }
+
+    *poolSize = nextSlot;
+    return sessions;
 }
 
 int
@@ -762,14 +885,13 @@ main(int argc, char* argv[])
 {
     py::scoped_interpreter guard{};
 
-    // Paths are relative to the repository root. Run the binary from there, or
-    // override them through the corresponding command-line arguments.
     std::string sionnaScene = "scenes/khu-real/KHU_Cropped_Sionna_RT.xml";
+    std::string sionnaCacheFile; // empty = live Sionna RT (default); see below
     std::string gnbPositionsPath = "scenarios/khu-real/gnbs-ret.csv";
-    std::string sumoTracePath = "scenarios/khu-real/ues-15.csv";
-    uint32_t nUes = 15;
+    std::string sumoTracePath = "scenarios/khu-real/ue_positions_seed0.csv";
+    uint32_t nUes = 300; // upper bound on distinct real ue_id count in the trace CSV
 
-    Time simTime = Seconds(180);
+    Time simTime = Seconds(900);
     Time trafficStart = Seconds(0.5);
     bool requireTraffic = false;
     Time sionnaUpdatePeriod = MilliSeconds(50);
@@ -785,19 +907,19 @@ main(int argc, char* argv[])
     std::string filenamePrefix = "sionna-rt-scene-";
     std::string filedirectory = "sionna-rt-images";
 
-    std::string guiSrc;               // empty = GUI bridge disabled
+    std::string guiSrc;
     std::string guiHost = "localhost";
 
-    std::string influxSrc;            // empty = InfluxDB KPI reporting disabled
+    std::string influxSrc;
     std::string influxHost = "localhost";
     uint16_t influxPort = 8086;
     std::string influxDb = "nr_kpi";
     double kpiReportInterval = 1.0;
 
-    // Applied explicitly here (rather than left to --ns3::NrA3RsrpHandoverAlgorithm::*)
-    // so the cell_kpi dashboard always shows the value actually in effect.
     double handoverTtTMs = 256.0;
     double handoverHysteresisDb = 3.0;
+
+    uint32_t poolSizeOverride = 0; // 0 = auto (== exact max-concurrent from the trace)
 
     SionnaRtChannelModel::RtPathSolverConfig RtPathSolverConfig;
     RtPathSolverConfig.maxDepth = 3;
@@ -812,9 +934,16 @@ main(int argc, char* argv[])
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("sionnaScene", "Sionna RT scene XML path", sionnaScene);
+    cmd.AddValue("sionnaCacheFile",
+                "Path to a HDF5 cache built by build_sionna_rt_cache.py; if set, replaces "
+                "live Sionna RT PathSolver calls with lookups (empty = live RT, default)",
+                sionnaCacheFile);
     cmd.AddValue("gnbPositions", "gNB position CSV path", gnbPositionsPath);
     cmd.AddValue("sumoTrace", "UE trace CSV path", sumoTracePath);
-    cmd.AddValue("N_Ues", "Expected number of UEs in the trace", nUes);
+    cmd.AddValue("N_Ues", "Upper bound on distinct ue_id count in the trace", nUes);
+    cmd.AddValue("poolSize",
+                 "Fixed UE device pool size (0 = auto-compute exact max concurrent active count)",
+                 poolSizeOverride);
     cmd.AddValue("simTime", "Simulation time", simTime);
     cmd.AddValue("trafficStart", "Downlink UDP traffic start time", trafficStart);
     cmd.AddValue("requireTraffic",
@@ -862,14 +991,37 @@ main(int argc, char* argv[])
     std::vector<UeTrace> ueTraces = LoadUeTrace(sumoTracePath, nUes);
     std::vector<GnbPosition> gnbPositions = LoadGnbPositions(gnbPositionsPath);
 
+    uint32_t computedPoolSize = 0;
+    std::vector<UeSession> sessions =
+        BuildSessionsAndAssignSlots(ueTraces, simTime.GetSeconds(), &computedPoolSize);
+    NS_ABORT_MSG_IF(computedPoolSize == 0, "trace produced zero active sessions within simTime");
+
+    uint32_t poolSize = (poolSizeOverride > 0) ? poolSizeOverride : computedPoolSize;
+    NS_ABORT_MSG_IF(poolSize < computedPoolSize,
+                    "--poolSize=" << poolSize << " is smaller than the trace's true max "
+                                  << "concurrent active count (" << computedPoolSize
+                                  << "); some sessions would have nowhere to go");
+
+    NS_LOG_UNCOND(ueTraces.size() << " distinct UE ids, " << sessions.size()
+                                  << " active sessions, max concurrent = " << computedPoolSize
+                                  << " -> pool size = " << poolSize);
+
+    // Group sessions by slot, in start-time order, so we can schedule each
+    // slot's arrival/position/departure events against its own node.
+    std::vector<std::vector<const UeSession*>> sessionsBySlot(poolSize);
+    for (const auto& session : sessions)
+    {
+        sessionsBySlot[session.slot].push_back(&session);
+    }
+
     NodeContainer gnbNodes;
     gnbNodes.Create(gnbPositions.size());
     NodeContainer ueNodes;
-    ueNodes.Create(ueTraces.size());
+    ueNodes.Create(poolSize);
 
-    NS_LOG_UNCOND("Creating " << ueNodes.GetN() << " UEs and " << gnbNodes.GetN() << " gNBs");
+    NS_LOG_UNCOND("Creating " << ueNodes.GetN() << " pooled UE devices and " << gnbNodes.GetN()
+                              << " gNBs");
 
-    // gNB mobility: fixed positions from CSV.
     Ptr<ListPositionAllocator> gnbPositionAlloc = CreateObject<ListPositionAllocator>();
     for (uint32_t i = 0; i < gnbPositions.size(); ++i)
     {
@@ -879,9 +1031,6 @@ main(int argc, char* argv[])
                               << "," << gnbPositions[i].position.z << ")");
         SendGnbPositionToGui(guiClient, gnbPositions[i].externalId, gnbPositions[i].position);
 
-        // NR assigns cellId = (gNB index * componentCarriers) + ccIndex + 1;
-        // with one CC per gNB here, that's simply i+1. Record the color now
-        // so UEs can be recolored to match as soon as they attach/handover.
         const uint16_t cellId = static_cast<uint16_t>(i + 1);
         const Vector cellColor = kCellColorPalette[i % kCellColorPalette.size()];
         g_cellIdToColor[cellId] = cellColor;
@@ -893,48 +1042,23 @@ main(int argc, char* argv[])
     gnbMobility.SetPositionAllocator(gnbPositionAlloc);
     gnbMobility.Install(gnbNodes);
 
-    // UE mobility: start at each trace's initial position, then teleport to
-    // each subsequent sample's position at that sample's timestamp -- same
-    // mechanism as scenario-zero-sionna-kyunghee.cc's SionnaMobilityModel
-    // driver, just against the stock ConstantPositionMobilityModel since the
-    // Sionna RT channel model reads position off whatever MobilityModel is
-    // installed and doesn't need a custom class.
+    // Pool UE mobility: park each slot at the start position of its first
+    // session (if it has any before simTime; otherwise at the origin -- an
+    // unused slot never gets attached or given traffic, so its position is
+    // irrelevant beyond costing one extra RT link).
     Ptr<ListPositionAllocator> uePositionAlloc = CreateObject<ListPositionAllocator>();
-    for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
+    for (uint32_t slot = 0; slot < poolSize; ++slot)
     {
-        uePositionAlloc->Add(InitialPosition(ueTraces[u]));
+        Vector initial = sessionsBySlot[slot].empty() ? Vector(0, 0, 0)
+                                                       : sessionsBySlot[slot].front()->startPosition;
+        uePositionAlloc->Add(initial);
     }
     MobilityHelper ueMobility;
     ueMobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
     ueMobility.SetPositionAllocator(uePositionAlloc);
     ueMobility.Install(ueNodes);
 
-    for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
-    {
-        Ptr<ConstantPositionMobilityModel> mobility =
-            ueNodes.Get(u)->GetObject<ConstantPositionMobilityModel>();
-        NS_LOG_UNCOND("UE trace '" << ueTraces[u].externalId << "' -> UE " << u << ", node "
-                                   << ueNodes.Get(u)->GetId());
-        SendUePositionToGui(guiClient, ueTraces[u].externalId, InitialPosition(ueTraces[u]));
-        const std::string ueExternalId = ueTraces[u].externalId;
-        for (const auto& sample : ueTraces[u].samples)
-        {
-            if (sample.time <= 0.0 || Seconds(sample.time) > simTime)
-            {
-                continue;
-            }
-            Simulator::Schedule(Seconds(sample.time), [mobility, sample, u, &guiClient, ueExternalId]() {
-                mobility->SetPosition(sample.position);
-                SendUePositionToGui(guiClient, ueExternalId, sample.position);
-                NS_LOG_UNCOND("[trace] t=" << Simulator::Now().GetSeconds() << " UE " << u
-                                           << " active=" << sample.active << " pos=("
-                                           << sample.position.x << "," << sample.position.y << ","
-                                           << sample.position.z << ")");
-            });
-        }
-    }
-
-    // NR / Sionna RT channel setup (same pattern as cttc-nr-demo-sionna-rt.cc).
+    // NR / Sionna RT channel setup (identical to khu-real-nr-sionna.cc).
     Ptr<NrPointToPointEpcHelper> nrEpcHelper = CreateObject<NrPointToPointEpcHelper>();
     Ptr<IdealBeamformingHelper> idealBeamformingHelper = CreateObject<IdealBeamformingHelper>();
     Ptr<NrHelper> nrHelper = CreateObject<NrHelper>();
@@ -962,6 +1086,34 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::SionnaRtChannelModel::OutputImageDirectory",
                        StringValue(filedirectory));
 
+    // --sionnaCacheFile switches the channel from live Sionna RT (PathSolver
+    // called on every UpdatePeriod tick) to SionnaLookupChannelModel, which
+    // answers from a precomputed HDF5 table instead (see
+    // scenarios/khu-real/tools/build_sionna_rt_cache.py). This only
+    // overrides *which* MatrixBasedChannelModel SionnaRtSpectrumPropagation
+    // LossModel wraps -- everything else (antenna arrays, beamforming,
+    // handover, etc.) is unchanged. Only valid for the fixed gNB bearing/
+    // tilt the cache was built with; a live RET tilt change afterwards
+    // won't be reflected (see SionnaLookupChannelModel's class doc).
+    if (!sionnaCacheFile.empty())
+    {
+        // Setting a PointerValue attribute (ChannelModel) via a TypeId
+        // StringValue triggers immediate construction of that object right
+        // here (Config::SetDefault -> AttributeChecker::CreateValidValue ->
+        // PointerValue::DeserializeFromString -> ObjectFactory::Create()) --
+        // not deferred to whenever SionnaRtSpectrumPropagationLossModel
+        // itself is later constructed. So CacheFile/Frequency must already
+        // be the active defaults *before* this call, or the constructed
+        // SionnaLookupChannelModel gets built with an empty CacheFile.
+        Config::SetDefault("ns3::SionnaLookupChannelModel::CacheFile",
+                           StringValue(sionnaCacheFile));
+        Config::SetDefault("ns3::SionnaLookupChannelModel::Frequency",
+                           DoubleValue(centralFrequencyBand1));
+        Config::SetDefault("ns3::SionnaRtSpectrumPropagationLossModel::ChannelModel",
+                           StringValue("ns3::SionnaLookupChannelModel"));
+        NS_LOG_UNCOND("[sionna] using lookup-table channel model, cache=" << sionnaCacheFile);
+    }
+
     Ptr<NrChannelHelper> channelHelper = CreateObject<NrChannelHelper>();
     channelHelper->SetAttribute("ChannelModel", StringValue("SionnaRT"));
     channelHelper->ConfigureSpectrumFactory(SionnaRtSpectrumPropagationLossModel::GetTypeId());
@@ -982,16 +1134,20 @@ main(int argc, char* argv[])
                                     PointerValue(CreateObject<IsotropicAntennaModel>()));
     nrHelper->SetGnbAntennaAttribute("NumRows", UintegerValue(4));
     nrHelper->SetGnbAntennaAttribute("NumColumns", UintegerValue(8));
+    // 3GPP TR38.901 directional element pattern, not isotropic: RET
+    // (DowntiltAngle/BearingAngle, see NrGnbNetDevice::ApplyRetControl) only
+    // has a physical effect on RSRP/throughput if the element itself has a
+    // real elevation/azimuth gain lobe to move -- confirmed empirically that
+    // an isotropic element leaves tilt/bearing changes at <1dB (noise-level)
+    // regardless of angle, since there's no directional pattern for
+    // orientation to modulate and DirectPathBeamforming ideally steers
+    // toward the UE's true angle either way.
     nrHelper->SetGnbAntennaAttribute("AntennaElement",
-                                     PointerValue(CreateObject<IsotropicAntennaModel>()));
+                                     PointerValue(CreateObject<ThreeGppAntennaModel>()));
 
     nrHelper->SetGnbBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
     nrHelper->SetUeBwpManagerAlgorithmAttribute("NGBR_LOW_LAT_EMBB", UintegerValue(0));
 
-    // The handover algorithm object is created as part of InstallGnbDevice(),
-    // so its attributes must be set on the factory before installing gNBs.
-    // Keep these command-line values and the KPI labels tied to the same
-    // effective configuration.
     if (nrHelper->GetHandoverAlgorithmType() == "ns3::NrA3RsrpHandoverAlgorithm")
     {
         nrHelper->SetHandoverAlgorithmAttribute("TimeToTrigger",
@@ -1003,30 +1159,42 @@ main(int argc, char* argv[])
     NetDeviceContainer gnbNetDev = nrHelper->InstallGnbDevice(gnbNodes, allBwps);
     NetDeviceContainer ueNetDev = nrHelper->InstallUeDevice(ueNodes, allBwps);
 
-    // X2 carries the actual handover signaling (HANDOVER REQUEST/ACK/etc.)
-    // between gNBs. Without this, a handover algorithm that decides to
-    // trigger a handover (e.g. --ns3::NrHelper::HandoverAlgorithm=
-    // ns3::NrA3RsrpHandoverAlgorithm) crashes on the first attempt
-    // (NrEpcX2::DoSendHandoverRequest asserts on a missing X2 socket).
     if (gnbNodes.GetN() > 1)
     {
         nrHelper->AddX2Interface(gnbNodes);
     }
 
-    // Handover event logging: map IMSI -> UE node/external-id so the trace
-    // callbacks below can report where each handover happened and recolor
-    // the right GUI point.
+    // cellId -> gNB NetDevice, needed to target HandoverRequest's sourceGnbDev.
+    std::map<uint16_t, Ptr<NetDevice>> cellIdToGnbDev;
+    for (uint32_t i = 0; i < gnbNetDev.GetN(); ++i)
+    {
+        cellIdToGnbDev[static_cast<uint16_t>(i + 1)] = gnbNetDev.Get(i);
+    }
+
+    // Slot bookkeeping keyed by slot index (0..poolSize-1), separate from the
+    // per-IMSI g_ueKpi map above (that one's keyed by IMSI, which is 1:1 with
+    // slot for the device's whole lifetime -- this one tracks pool state).
+    std::vector<bool> slotEverAttached(poolSize, false);
+    std::vector<std::string> slotGuiName(poolSize);
+    for (uint32_t slot = 0; slot < poolSize; ++slot)
+    {
+        slotGuiName[slot] = "ue_slot_" + std::to_string(slot);
+    }
+
     for (uint32_t i = 0; i < ueNetDev.GetN(); ++i)
     {
         auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
         g_imsiToUeNode[ueDev->GetImsi()] = ueNodes.Get(i);
-        g_imsiToUeName[ueDev->GetImsi()] = ueTraces[i].externalId;
-        g_ueKpi[ueDev->GetImsi()].name = ueTraces[i].externalId;
+        g_imsiToUeName[ueDev->GetImsi()] = slotGuiName[i]; // GUI marker identity == slot, not trace id
+        g_ueKpi[ueDev->GetImsi()].name = ""; // idle until first session claims it
     }
     Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/HandoverStart",
                                           MakeCallback(&LogHandoverStart));
     Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/HandoverEndOk",
                                           MakeCallback(&LogHandoverEndOk));
+    bool connEstConnected = Config::ConnectWithoutContextFailSafe(
+        "/NodeList/*/DeviceList/*/NrUeRrc/ConnectionEstablished", MakeCallback(&RecordAttachForKpi));
+    NS_LOG_UNCOND("[kpi] trace connect: ConnectionEstablished=" << connEstConnected);
     Config::ConnectWithoutContextFailSafe("/NodeList/*/DeviceList/*/NrGnbRrc/RecvMeasurementReport",
                                           MakeCallback(&RecordRsrpForKpi));
 
@@ -1057,6 +1225,82 @@ main(int argc, char* argv[])
         const uint16_t cellId = static_cast<uint16_t>(i + 1);
         g_cellKpi[cellId].gnbDev = gnbNetDev.Get(i);
         g_cellKpi[cellId].txPowerDbm = txPowerDbm;
+
+        // Apply the gNB's initial bearing/tilt from gnbPositions[i], parsed
+        // from gnbs-ret.csv's optional 5th/6th columns. Unlike
+        // NrGnbNetDevice::ApplyRetControl (which only fires on an E2SM-RC
+        // RET_Tilt_Control message at runtime), nothing previously set these
+        // at startup, so every gNB silently sat at the UniformPlanarArray
+        // default (bearing=0, tilt=0) regardless of what the CSV said. A
+        // real static bearing per gNB now actually matters for RSRP/
+        // throughput since AntennaElement is ThreeGppAntennaModel (see
+        // above) rather than isotropic.
+        {
+            Ptr<UniformPlanarArray> antenna = DynamicCast<UniformPlanarArray>(
+                NrHelper::GetGnbPhy(gnbNetDev.Get(i), 0)->GetSpectrumPhy()->GetAntenna());
+            if (antenna)
+            {
+                if (!std::isnan(gnbPositions[i].bearingDeg))
+                {
+                    antenna->SetAttribute(
+                        "BearingAngle",
+                        DoubleValue(gnbPositions[i].bearingDeg * M_PI / 180.0));
+                }
+                if (!std::isnan(gnbPositions[i].tiltDeg))
+                {
+                    antenna->SetAttribute(
+                        "DowntiltAngle",
+                        DoubleValue(gnbPositions[i].tiltDeg * M_PI / 180.0));
+                }
+                NS_LOG_UNCOND("gNB '" << gnbPositions[i].externalId
+                                      << "' initial bearing=" << gnbPositions[i].bearingDeg
+                                      << " tilt=" << gnbPositions[i].tiltDeg);
+
+                // The GUI runs its own separate Sionna scene/process -- it
+                // only ever learns a gNB's position/color via
+                // SendGnbPositionToGui/SendColorToGui above, never its
+                // orientation, so the arrow/panel there silently stayed at
+                // the default (0,0,0) no matter what this scenario's
+                // antenna was actually set to. Mirror it explicitly.
+                SendGnbOrientationToGui(guiClient,
+                                        gnbPositions[i].externalId,
+                                        std::isnan(gnbPositions[i].bearingDeg)
+                                            ? 0.0
+                                            : gnbPositions[i].bearingDeg,
+                                        std::isnan(gnbPositions[i].tiltDeg)
+                                            ? 0.0
+                                            : gnbPositions[i].tiltDeg);
+            }
+        }
+
+        // Guarantee at least the serving-cell RSRP gets reported for every
+        // attached UE, independent of whether it ever detects a neighbor.
+        // NrGnbNetDevice::ConfigureCell() already registers an EVENT_A4
+        // (lowest threshold, so it fires immediately) config by default
+        // (m_sendCuCp) to approximate periodic reporting -- see its own
+        // comment: nr's UE-side RRC doesn't implement true PERIODICAL
+        // (NrUeRrc::ApplyMeasConfig asserts on it). But A4 only evaluates
+        // *non-serving* stored measurements, so a UE that never detects the
+        // other gNB at all (e.g. one dominant cell right on top of it, the
+        // other genuinely out of range) never has anything to trigger on --
+        // meaning RecordRsrpForKpi never fires for it and rsrp_serving_dbm
+        // stays stuck at its 0.0 "no data" default despite a perfectly
+        // healthy serving link (real SINR/MCS, real throughput). EVENT_A1
+        // only looks at the serving cell itself, so add one here with the
+        // same "lowest threshold = fires immediately" trick to close that
+        // gap; A4 (added automatically) still covers the neighbor side.
+        NrRrcSap::ReportConfigEutra a1Config;
+        a1Config.triggerType = NrRrcSap::ReportConfigEutra::EVENT;
+        a1Config.eventId = NrRrcSap::ReportConfigEutra::EVENT_A1;
+        a1Config.threshold1.choice = NrRrcSap::ThresholdEutra::THRESHOLD_RSRP;
+        a1Config.threshold1.range = 0;
+        a1Config.timeToTrigger = 0;
+        a1Config.triggerQuantity = NrRrcSap::ReportConfigEutra::RSRP;
+        a1Config.reportQuantity = NrRrcSap::ReportConfigEutra::BOTH;
+        a1Config.maxReportCells = 8;
+        a1Config.reportInterval = NrRrcSap::ReportConfigEutra::MS1024;
+        a1Config.reportAmount = 0xff;
+        gnbNetDev.Get(i)->GetObject<NrGnbNetDevice>()->GetRrc()->AddUeMeasReportConfig(a1Config);
     }
 
     auto [remoteHost, remoteHostIpv4Address] =
@@ -1065,31 +1309,21 @@ main(int argc, char* argv[])
     InternetStackHelper internet;
     internet.Install(ueNodes);
     Ipv4InterfaceContainer ueIpIface = nrEpcHelper->AssignUeIpv4Address(NetDeviceContainer(ueNetDev));
-    nrHelper->AttachToClosestGnb(ueNetDev, gnbNetDev);
+    // No global AttachToClosestGnb/AttachToMaxRsrpGnb here (unlike
+    // khu-real-nr-sionna.cc): each slot attaches for the first time lazily,
+    // at its first session's start, via the arrival handler below.
 
-    // Color each UE to match its initial serving cell in the GUI. Attach is
-    // via ideal RRC signaling and isn't instantaneous, so this is scheduled
-    // for trafficStart rather than read synchronously here.
-    Simulator::Schedule(trafficStart, [ueNetDev]() {
-        for (uint32_t i = 0; i < ueNetDev.GetN(); ++i)
-        {
-            auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(i));
-            RecolorUeForCell(ueDev->GetImsi(), ueDev->GetCellId());
-        }
-    });
-
-    // Single downlink UDP flow per UE, matching scenario-zero-sionna-kyunghee.cc,
-    // gated by the trace's active/inactive windows.
     uint16_t dlPort = 1234;
     ApplicationContainer serverApps;
-    ApplicationContainer clientApps;
     UdpServerHelper dlPacketSink(dlPort);
     serverApps.Add(dlPacketSink.Install(ueNodes));
-    for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
+    for (uint32_t slot = 0; slot < poolSize; ++slot)
     {
-        auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(u));
-        g_ueKpi[ueDev->GetImsi()].serverApp = DynamicCast<UdpServer>(serverApps.Get(u));
+        auto ueDev = DynamicCast<NrUeNetDevice>(ueNetDev.Get(slot));
+        g_ueKpi[ueDev->GetImsi()].serverApp = DynamicCast<UdpServer>(serverApps.Get(slot));
     }
+    serverApps.Start(trafficStart);
+    serverApps.Stop(simTime);
 
     NrQosFlow dlFlow(NrQosFlow::NGBR_LOW_LAT_EMBB);
     Ptr<NrQosRule> dlRule = Create<NrQosRule>();
@@ -1097,20 +1331,143 @@ main(int argc, char* argv[])
     dlpf.localPortStart = dlPort;
     dlpf.localPortEnd = dlPort;
     dlRule->Add(dlpf);
-
-    for (uint32_t u = 0; u < ueNodes.GetN(); ++u)
+    for (uint32_t slot = 0; slot < poolSize; ++slot)
     {
-        Ptr<NetDevice> ueDevice = ueNetDev.Get(u);
-        nrHelper->ActivateDedicatedQosFlow(ueDevice, dlFlow, dlRule);
+        nrHelper->ActivateDedicatedQosFlow(ueNetDev.Get(slot), dlFlow, dlRule);
+    }
 
-        auto installClient = [&](double start, double stop) {
-            start = std::max(start, trafficStart.GetSeconds());
-            stop = std::min(stop, simTime.GetSeconds());
-            if (stop <= start)
+    ApplicationContainer clientApps;
+
+    // ---- Per-session scheduling: arrival (attach/handover + KPI reset +
+    // traffic start), interior position updates, and departure (traffic stop
+    // already handled by clientApp.Stop()). ----
+    for (const auto& session : sessions)
+    {
+        const uint32_t slot = session.slot;
+        Ptr<NetDevice> ueDevice = ueNetDev.Get(slot);
+        Ptr<ConstantPositionMobilityModel> mobility =
+            ueNodes.Get(slot)->GetObject<ConstantPositionMobilityModel>();
+        const std::string traceId = ueTraces[session.traceIndex].externalId;
+        const std::string guiName = slotGuiName[slot];
+        auto ueDevPtr = DynamicCast<NrUeNetDevice>(ueDevice);
+        const uint64_t imsi = ueDevPtr->GetImsi();
+
+        Simulator::Schedule(
+            Seconds(session.start),
+            [ueDevice, mobility, &guiClient, guiName, traceId, imsi, slot, &nrHelper, gnbNetDev,
+             cellIdToGnbDev, position = session.startPosition, &slotEverAttached]() {
+                mobility->SetPosition(position);
+                SendUePositionToGui(guiClient, guiName, position);
+
+                UeKpiState& kpi = g_ueKpi[imsi];
+                kpi.name = traceId;
+                kpi.rsrpDbm.clear();
+                kpi.hoCount = 0;
+                kpi.lastHoTime = -1e9;
+                kpi.lastHoSource = 0;
+                kpi.lastHoTarget = 0;
+                kpi.isPingPong = false;
+                if (kpi.serverApp)
+                {
+                    kpi.lastRxPackets = kpi.serverApp->GetReceived();
+                }
+
+                if (!slotEverAttached[slot])
+                {
+                    // AttachToMaxRsrpGnb (true RSRP-based initial attach) was
+                    // tried here first but reliably segfaults when invoked
+                    // dynamically mid-simulation in this NR fork -- it only
+                    // seems to be exercised, upstream, as a one-shot call for
+                    // all UEs before Simulator::Run() begins. Falling back to
+                    // the same distance-based AttachToGnb the baseline
+                    // scenario (khu-real-nr-sionna.cc) uses for its own
+                    // initial deployment: with only 2 isotropic, non-RET gNBs
+                    // here, nearest-by-distance and strongest-by-RSRP pick
+                    // the same cell in practice.
+                    slotEverAttached[slot] = true;
+                    double minDistance = std::numeric_limits<double>::infinity();
+                    Ptr<NetDevice> closest;
+                    for (uint32_t g = 0; g < gnbNetDev.GetN(); ++g)
+                    {
+                        Vector gnbPos =
+                            gnbNetDev.Get(g)->GetNode()->GetObject<MobilityModel>()->GetPosition();
+                        double d = CalculateDistance(position, gnbPos);
+                        if (d < minDistance)
+                        {
+                            minDistance = d;
+                            closest = gnbNetDev.Get(g);
+                        }
+                    }
+                    nrHelper->AttachToGnb(ueDevice, closest);
+                    NS_LOG_UNCOND("[pool] t=" << Simulator::Now().GetSeconds() << " slot=" << slot
+                                              << " '" << traceId << "' first attach (closest gNB)");
+                }
+                else
+                {
+                    // Already RRC-connected from a previous occupant of this
+                    // slot: move it via a real (but KPI-suppressed) handover
+                    // to the geometrically closest gNB, rather than calling
+                    // AttachToGnb again on a live connection.
+                    auto ueDevCast = DynamicCast<NrUeNetDevice>(ueDevice);
+                    uint16_t currentCellId = ueDevCast->GetCellId();
+                    double minDistance = std::numeric_limits<double>::infinity();
+                    uint16_t targetCellId = currentCellId;
+                    for (uint32_t g = 0; g < gnbNetDev.GetN(); ++g)
+                    {
+                        Vector gnbPos =
+                            gnbNetDev.Get(g)->GetNode()->GetObject<MobilityModel>()->GetPosition();
+                        double d = CalculateDistance(position, gnbPos);
+                        if (d < minDistance)
+                        {
+                            minDistance = d;
+                            targetCellId = static_cast<uint16_t>(g + 1);
+                        }
+                    }
+                    if (targetCellId != currentCellId)
+                    {
+                        auto sourceGnbDev = cellIdToGnbDev.at(currentCellId);
+                        g_suppressNextHoKpi.insert(imsi);
+                        nrHelper->HandoverRequest(Seconds(0), ueDevice, sourceGnbDev, targetCellId);
+                        NS_LOG_UNCOND("[pool] t=" << Simulator::Now().GetSeconds() << " slot="
+                                                  << slot << " '" << traceId
+                                                  << "' reuse, moving cell " << currentCellId
+                                                  << " -> " << targetCellId);
+                    }
+                    else
+                    {
+                        NS_LOG_UNCOND("[pool] t=" << Simulator::Now().GetSeconds() << " slot="
+                                                  << slot << " '" << traceId
+                                                  << "' reuse, staying on cell " << currentCellId);
+                    }
+                }
+            });
+
+        // Interior position samples for this session (the arrival sample at
+        // session.start is already handled above).
+        for (const auto& sample : ueTraces[session.traceIndex].samples)
+        {
+            if (sample.time <= session.start || sample.time > session.end)
             {
-                return;
+                continue;
             }
-            UdpClientHelper dlClient(ueIpIface.GetAddress(u), dlPort);
+            Simulator::Schedule(
+                Seconds(sample.time), [mobility, sample, slot, &guiClient, guiName]() {
+                    mobility->SetPosition(sample.position);
+                    SendUePositionToGui(guiClient, guiName, sample.position);
+                    NS_LOG_UNCOND("[trace] t=" << Simulator::Now().GetSeconds() << " slot=" << slot
+                                               << " pos=(" << sample.position.x << ","
+                                               << sample.position.y << "," << sample.position.z
+                                               << ")");
+                });
+        }
+
+        // Traffic for this session, clipped to [trafficStart, simTime] exactly
+        // like khu-real-nr-sionna.cc's installClient() lambda.
+        double start = std::max(session.start, trafficStart.GetSeconds());
+        double stop = std::min(session.end, simTime.GetSeconds());
+        if (stop > start)
+        {
+            UdpClientHelper dlClient(ueIpIface.GetAddress(slot), dlPort);
             dlClient.SetAttribute("Interval", TimeValue(MilliSeconds(20)));
             dlClient.SetAttribute("MaxPackets", UintegerValue(1000000));
             dlClient.SetAttribute("PacketSize", UintegerValue(1024));
@@ -1118,39 +1475,8 @@ main(int argc, char* argv[])
             clientApp.Start(Seconds(start));
             clientApp.Stop(Seconds(stop));
             clientApps.Add(clientApp);
-        };
-
-        bool active = false;
-        double activeStart = 0.0;
-        for (const auto& sample : ueTraces[u].samples)
-        {
-            if (sample.time < 0.0)
-            {
-                active = sample.active;
-                if (active)
-                {
-                    activeStart = 0.0;
-                }
-                continue;
-            }
-            if (sample.active && !active)
-            {
-                active = true;
-                activeStart = sample.time;
-            }
-            else if (!sample.active && active)
-            {
-                installClient(activeStart, sample.time);
-                active = false;
-            }
-        }
-        if (active)
-        {
-            installClient(activeStart, simTime.GetSeconds());
         }
     }
-    serverApps.Start(trafficStart);
-    serverApps.Stop(simTime);
 
     if (!influxClient.is_none())
     {

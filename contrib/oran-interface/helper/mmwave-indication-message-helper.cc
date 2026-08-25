@@ -126,6 +126,7 @@ void
 MmWaveIndicationMessageHelper::AddDuCellPmItem (
     long macPduCellSpecific, long macPduInitialCellSpecific, long macQpskCellSpecific,
     long mac16QamCellSpecific, long mac64QamCellSpecific, double prbUtilizationDl,
+    long totalPrbDl,
     long macRetxCellSpecific, long macVolumeCellSpecific, long macMac04CellSpecific,
     long macMac59CellSpecific, long macMac1014CellSpecific, long macMac1519CellSpecific,
     long macMac2024CellSpecific, long macMac2529CellSpecific, long macSinrBin1CellSpecific,
@@ -145,6 +146,13 @@ MmWaveIndicationMessageHelper::AddDuCellPmItem (
   cellVal->AddItem<long> ("TB.TotNbrDlInitial.16Qam", mac16QamCellSpecific);
   cellVal->AddItem<long> ("TB.TotNbrDlInitial.64Qam", mac64QamCellSpecific);
   cellVal->AddItem<long> ("RRU.PrbUsedDl", (long) std::ceil (prbUtilizationDl));
+  // Same value under the name flexric/examples/xApp/c/orange/xapp_es_with_cell_util.c
+  // actually parses (cmp_str_ba("RRU.PrbTotDl", name)) -- that vendored xApp's
+  // measurement-name convention predates this fork's NR migration and never
+  // matched "RRU.PrbUsedDl", so its cell-utilization evaluation never saw a
+  // valid PRB reading. Additive: the pre-existing "RRU.PrbUsedDl" item above
+  // (consumed elsewhere/potentially by other tooling) is unchanged.
+  cellVal->AddItem<long> ("RRU.PrbTotDl", totalPrbDl);
 
   if (!m_reducedPmValues)
     {

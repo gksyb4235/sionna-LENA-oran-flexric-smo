@@ -10,6 +10,7 @@
 #include "nr-gnb-mac.h"
 #include "nr-gnb-phy.h"
 #include "nr-gnb-rrc.h"
+#include "nr-phy-mac-common.h"
 #include "nr-radio-bearer-info.h"
 #include "nr-spectrum-phy.h"
 
@@ -109,6 +110,12 @@ NrGnbNetDevice::GetTypeId()
                           BooleanValue(true),
                           MakeBooleanAccessor(&NrGnbNetDevice::m_sendCuCp),
                           MakeBooleanChecker())
+            .AddAttribute("EnableDuReport",
+                          "If true, send the KPM DU indication message (PRB "
+                          "utilization / MCS distribution)",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrGnbNetDevice::m_sendDu),
+                          MakeBooleanChecker())
             .AddAttribute("ReducedPmValues",
                           "If true, use the reduced PM value set in KPM indications",
                           BooleanValue(false),
@@ -123,6 +130,7 @@ NrGnbNetDevice::NrGnbNetDevice()
       m_e2Periodicity(1.0),
       m_sendCuUp(true),
       m_sendCuCp(true),
+      m_sendDu(false),
       m_reducedPmValues(false),
       m_stopSendingMessages(false),
       m_isReportingEnabled(false)
@@ -245,6 +253,46 @@ NrGnbNetDevice::ControlMessageReceivedCallback(E2AP_PDU_t* sub_req_pdu)
                                        ret.bearingDeg);
         break;
     }
+    case RicControlMessage::ControlMessageServiceStyle::Energy_state: {
+        long actionId = controlMessage->m_e2SmRcControlHeaderFormat1->ric_ControlAction_ID;
+        EnergyState state = EnergyState::ON;
+        bool recognized = true;
+        switch (actionId)
+        {
+        case RicControlMessage::Energy_State_Control_Action_ID::Cell_Off:
+            state = EnergyState::OFF;
+            break;
+        case RicControlMessage::Energy_State_Control_Action_ID::Cell_On:
+            state = EnergyState::ON;
+            break;
+        case RicControlMessage::Energy_State_Control_Action_ID::Cell_Sleep:
+            state = EnergyState::SLEEP;
+            break;
+        default:
+            recognized = false;
+            break;
+        }
+        if (!recognized)
+        {
+            NS_LOG_UNCOND("Unsupported Energy_state action " << actionId);
+            break;
+        }
+
+        uint16_t targetCellId = controlMessage->GetTargetCell();
+        if (targetCellId != m_cellId)
+        {
+            NS_LOG_UNCOND("[ES] energy-state control for cell "
+                          << targetCellId << " received by cell " << m_cellId << "; ignored");
+            break;
+        }
+
+        Simulator::ScheduleWithContext(1,
+                                       Seconds(0),
+                                       &NrGnbNetDevice::ApplyEnergyState,
+                                       this,
+                                       state);
+        break;
+    }
     default: {
         NS_LOG_UNCOND("Unsupported RIC Style Type "
                       << controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type);
@@ -287,6 +335,54 @@ NrGnbNetDevice::ApplyRetControl(double tiltDeg, bool hasBearing, double bearingD
                                         ? " bearing=" + std::to_string(bearingDeg) + " deg"
                                         : "")
                                 << " to " << applied << " BWP antenna(s)");
+}
+
+void
+NrGnbNetDevice::ApplyEnergyState(EnergyState state)
+{
+    // -100 dBm is far below any receiver's noise floor, so this silences the
+    // cell in both the standard propagation-loss and Sionna RT channel
+    // paths (both consume NrGnbPhy::m_txPower identically) without touching
+    // MAC/PHY scheduling logic at all. SLEEP uses a smaller, fixed
+    // attenuation from the nominal power as a simple middle state.
+    constexpr double kOffTxPowerDbm = -100.0;
+    constexpr double kSleepAttenuationDb = 20.0;
+
+    m_energyState = state;
+    uint32_t applied = 0;
+    for (uint32_t i = 0; i < GetCcMapSize(); ++i)
+    {
+        Ptr<NrGnbPhy> phy = GetPhy(i);
+        if (!phy)
+        {
+            continue;
+        }
+
+        if (state == EnergyState::ON)
+        {
+            if (m_txPowerSaved)
+            {
+                phy->SetTxPower(m_savedTxPowerDbm);
+                m_txPowerSaved = false;
+            }
+        }
+        else
+        {
+            if (!m_txPowerSaved)
+            {
+                m_savedTxPowerDbm = phy->GetTxPower();
+                m_txPowerSaved = true;
+            }
+            phy->SetTxPower(state == EnergyState::OFF ? kOffTxPowerDbm
+                                                       : m_savedTxPowerDbm - kSleepAttenuationDb);
+        }
+        ++applied;
+    }
+
+    const char* stateName =
+        state == EnergyState::ON ? "ON" : (state == EnergyState::OFF ? "OFF" : "SLEEP");
+    NS_LOG_UNCOND("[ES] cell " << m_cellId << ": energy state -> " << stateName << " applied to "
+                               << applied << " BWP PHY(s)");
 }
 
 void
@@ -502,6 +598,65 @@ NrGnbNetDevice::BuildRicIndicationMessageCuCp(std::string plmId)
     return indicationMessageHelper->CreateIndicationMessage(m_e2term->SubscriptionMapRef());
 }
 
+Ptr<KpmIndicationMessage>
+NrGnbNetDevice::BuildRicIndicationMessageDu(std::string plmId)
+{
+    Ptr<MmWaveIndicationMessageHelper> indicationMessageHelper =
+        CreateObject<MmWaveIndicationMessageHelper>(IndicationMessageHelper::IndicationMessageType::Du,
+                                              m_forceE2FileLogging,
+                                              m_reducedPmValues);
+
+    // Same ratio scratch/khu-ret-experiment.cc's ReportKpiToInflux already
+    // computes for its cell_kpi dashboard's prb_utilization_pct field.
+    double prbUtilizationDl = (m_duPrbCapacityAccum > 0)
+                                  ? (100.0 * static_cast<double>(m_duPrbUsedAccum) /
+                                     static_cast<double>(m_duPrbCapacityAccum))
+                                  : 0.0;
+
+    auto ueMap = m_rrc->GetUeMap();
+
+    // Physical PRB count for this cell's (single) BWP -- static per-numerology/
+    // bandwidth capacity, not derived from the accumulators above.
+    long totalPrbDl = GetPhy(0) ? static_cast<long>(GetBwpDlBandwidth(0)) : 0;
+
+    // Fields with no cheap real data source yet (per-cell PDU/QAM/retx
+    // counts, SINR bins, RLC buffer occupancy) are reported as 0; only
+    // PRB utilization, MCS distribution and active-UE count are real.
+    indicationMessageHelper->AddDuCellPmItem(0,                    // macPduCellSpecific
+                                             0,                    // macPduInitialCellSpecific
+                                             0,                    // macQpskCellSpecific
+                                             0,                    // mac16QamCellSpecific
+                                             0,                    // mac64QamCellSpecific
+                                             prbUtilizationDl,
+                                             totalPrbDl,
+                                             0,                    // macRetxCellSpecific
+                                             0,                    // macVolumeCellSpecific
+                                             m_duMcsBins[0],
+                                             m_duMcsBins[1],
+                                             m_duMcsBins[2],
+                                             m_duMcsBins[3],
+                                             m_duMcsBins[4],
+                                             m_duMcsBins[5],
+                                             0,                    // macSinrBin1CellSpecific
+                                             0,                    // macSinrBin2CellSpecific
+                                             0,                    // macSinrBin3CellSpecific
+                                             0,                    // macSinrBin4CellSpecific
+                                             0,                    // macSinrBin5CellSpecific
+                                             0,                    // macSinrBin6CellSpecific
+                                             0,                    // macSinrBin7CellSpecific
+                                             0,                    // rlcBufferOccupCellSpecific
+                                             static_cast<long>(ueMap.size()));
+
+    indicationMessageHelper->FillDuValues(std::to_string(m_cellId));
+
+    // Reset accumulators for the next reporting period.
+    m_duPrbUsedAccum = 0;
+    m_duPrbCapacityAccum = 0;
+    m_duMcsBins.fill(0);
+
+    return indicationMessageHelper->CreateIndicationMessage(m_e2term->SubscriptionMapRef());
+}
+
 void
 NrGnbNetDevice::BuildAndSendReportMessage(E2Termination::RicSubscriptionRequest_rval_s params)
 {
@@ -559,6 +714,30 @@ NrGnbNetDevice::BuildAndSendReportMessage(E2Termination::RicSubscriptionRequest_
                 header->m_size,
                 (uint8_t*)cuCpMsg->m_buffer,
                 cuCpMsg->m_size);
+            m_e2term->SendE2Message(pdu);
+            delete pdu;
+        }
+    }
+
+    if (m_sendDu)
+    {
+        Ptr<KpmIndicationHeader> header = BuildRicIndicationHeader(plmId, gnbId, m_cellId);
+        Ptr<KpmIndicationMessage> duMsg = BuildRicIndicationMessageDu(plmId);
+        if (header && duMsg)
+        {
+            NS_LOG_DEBUG("Send NR DU");
+            auto* pdu = new E2AP_PDU(); // value-init: ASN.1 C struct must start zeroed
+            encoding::generate_e2apv1_indication_request_parameterized(
+                pdu,
+                params.requestorId,
+                params.instanceId,
+                params.ranFuncionId,
+                params.actionId,
+                1, // sequence number
+                (uint8_t*)header->m_buffer,
+                header->m_size,
+                (uint8_t*)duMsg->m_buffer,
+                duMsg->m_size);
             m_e2term->SendE2Message(pdu);
             delete pdu;
         }
@@ -669,6 +848,32 @@ NrGnbNetDevice::DoInitialize()
             "/NodeList/*/DeviceList/*/NrGnbRrc/RecvMeasurementReport",
             MakeCallback(&NrGnbNetDevice::RecvMeasurementReport, this));
     }
+
+    if (m_sendDu)
+    {
+        // NrGnbPhy's SlotDataStats gives the same usedReg/availableRb*
+        // availableSym quantities scratch/khu-ret-experiment.cc already
+        // uses for its cell_kpi PRB utilization dashboard -- reuse that
+        // exact, already-proven Config path.
+        Config::ConnectWithoutContextFailSafe(
+            "/NodeList/*/DeviceList/*/BandwidthPartMap/*/NrGnbPhy/SlotDataStats",
+            MakeCallback(&NrGnbNetDevice::NotifySlotDataStats, this));
+
+        // NrGnbMac objects live inside the per-CC BandwidthPartGnb map
+        // rather than as a directly addressable Config path the way PHY is
+        // above, so connect directly through the already-available GetMac()
+        // accessor for the MCS histogram.
+        for (uint32_t i = 0; i < GetCcMapSize(); ++i)
+        {
+            Ptr<NrGnbMac> mac = GetMac(i);
+            if (mac)
+            {
+                mac->TraceConnectWithoutContext("DlScheduling",
+                                                MakeCallback(&NrGnbNetDevice::NotifyDlScheduling,
+                                                            this));
+            }
+        }
+    }
 }
 
 void
@@ -710,6 +915,36 @@ NrGnbNetDevice::RecvMeasurementReport(uint64_t imsi,
                          << " serving RSRP " << m_l3RsrpDbmMap[imsi][cellId] << " dBm, "
                          << report.measResults.measResultListEutra.size()
                          << " neighbour(s) reported");
+}
+
+void
+NrGnbNetDevice::NotifyDlScheduling(NrSchedulingCallbackInfo info)
+{
+    if (info.m_mcs != UINT8_MAX)
+    {
+        std::size_t bin = std::min<std::size_t>(5, info.m_mcs / 5);
+        ++m_duMcsBins[bin];
+    }
+}
+
+void
+NrGnbNetDevice::NotifySlotDataStats(const SfnSf& /* sfnSf */,
+                                    uint32_t /* scheduledUe */,
+                                    uint32_t usedReg,
+                                    uint32_t /* usedSym */,
+                                    uint32_t availableRb,
+                                    uint32_t availableSym,
+                                    uint16_t /* bwpId */,
+                                    uint16_t cellId)
+{
+    // The Config::Connect wildcard in DoInitialize matches every gNB's PHY,
+    // same reasoning as RecvMeasurementReport's cellId filter above.
+    if (cellId != m_cellId)
+    {
+        return;
+    }
+    m_duPrbUsedAccum += usedReg;
+    m_duPrbCapacityAccum += static_cast<uint64_t>(availableRb) * availableSym;
 }
 
 void

@@ -204,6 +204,9 @@ class ZMQBridge:
                 msg["name"], msg["bearing_deg"], msg["tilt_deg"], int(msg["num_v"])
             )
 
+        elif t == "gnb_orientation":
+            gui.set_gnb_orientation(msg["name"], msg["bearing_deg"], msg["tilt_deg"])
+
         elif t == "set_color":
             # 서빙 셀 변경(핸드오버) 등에 따라 UE/gNB 포인트 색을 바꾼다.
             # 위치와 달리 매 tick 오지 않으므로, 다음 위치 갱신을 기다리지

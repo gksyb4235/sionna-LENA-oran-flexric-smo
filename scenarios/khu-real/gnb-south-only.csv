@@ -1,0 +1,11 @@
+# Single-gNB variant of gnbs-ret.csv for the playground capacity experiment:
+# only gnb_south is kept so RET tilt/bearing/beamforming changes on this one
+# cell can be isolated without a second cell absorbing/handing over UEs.
+#
+# z = local terrain height + 25m mast (same source position as gnbs-ret.csv).
+# bearing_deg/tilt_deg columns are intentionally omitted here too -- the
+# scenario code parses but does not apply them at startup (see
+# khu-real-nr-sionna.cc:21); set RET via xapp_ret_ctrl at runtime instead,
+# or via --ns3::NrHelper::... / a future explicit init-tilt flag.
+gnb_id,x,y,z
+gnb_south,-362.71,78.75,82.62

@@ -123,6 +123,23 @@
           "alias": "$tag_cell"
         }
       ]
+    },
+    {
+      "id": 7,
+      "title": "TX Power (dBm)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "dBm", "min": -100, "max": 50 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"tx_power_dbm\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
     }
   ]
 }
