@@ -17,8 +17,8 @@ sim_time="${SWEEP_SIM_TIME:-900}"
 max_parallel="${SWEEP_MAX_PARALLEL:-4}"
 memory_limit_bytes="${SWEEP_MEMORY_LIMIT_BYTES:-3221225472}"
 
-cache18_default="${repo_root}/scenarios/khu-real/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5"
-cache35_default="${repo_root}/scenarios/khu-real/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5"
+cache18_default="${repo_root}/scenarios/khu-real/ret_caches/tilt_5deg/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5"
+cache35_default="${repo_root}/scenarios/khu-real/ret_caches/tilt_5deg/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5"
 ret_cache_root="${RET_CACHE_ROOT:-${repo_root}/scenarios/khu-real/ret_caches}"
 if [[ -n "${RET_CACHE18_TEMPLATE:-}" ]]; then
   ret_cache18_template="${RET_CACHE18_TEMPLATE}"
@@ -136,7 +136,7 @@ completion_file="${sweep_root}/completion.csv"
   printf 'baseline_tx_power_dbm=43\n'
   printf 'baseline_cio_db=gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0\n'
   printf 'ret_bearing_deg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10\n'
-  printf 'baseline_ret_tilt_deg=15\n'
+  printf 'baseline_ret_tilt_deg=5\n'
   if [[ "${sweep_kind}" == "CIO" ]]; then
     printf 'interpretation_warning=Equal CIO on serving and neighbor cells cancels in the A3 Ocn-Ocp comparison.\n'
   fi
@@ -182,7 +182,7 @@ for ((wave_start = 0; wave_start < ${#sweep_values[@]}; wave_start += max_parall
 
     txp_map='gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43'
     cio_map='gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0'
-    tilt_map='gNB_5G:15,gNB_4G_1:15,gNB_4G_2:15'
+    tilt_map='gNB_5G:5,gNB_4G_1:5,gNB_4G_2:5'
     cache18="${cache18_default}"
     cache35="${cache35_default}"
 

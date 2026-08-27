@@ -9,7 +9,7 @@ results_root="${HYS_RESULTS_ROOT:-${repo_root}/scenarios/results/HYS_test}"
 sweep_name="${HYS_SWEEP_NAME:-sweep_$(date +%Y%m%d_%H%M%S)}"
 sweep_root="${results_root}/${sweep_name}"
 sim_time="${HYS_SIM_TIME:-900}"
-max_parallel="${HYS_MAX_PARALLEL:-4}"
+max_parallel="${HYS_MAX_PARALLEL:-3}"
 memory_limit_bytes="${HYS_MEMORY_LIMIT_BYTES:-3221225472}"
 hys_values_text="${HYS_VALUES:-0.0 0.5 1.0 1.5 2.0 2.5 3.0 3.5 4.0 4.5 5.0}"
 
@@ -54,7 +54,7 @@ completion_file="${sweep_root}/completion.csv"
   printf 'cio_db=gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0\n'
   printf 'tx_power_dbm=gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43\n'
   printf 'ret_bearing_deg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10\n'
-  printf 'ret_tilt_deg=gNB_5G:15,gNB_4G_1:15,gNB_4G_2:15\n'
+  printf 'ret_tilt_deg=gNB_5G:5,gNB_4G_1:5,gNB_4G_2:5\n'
 } > "${config_file}"
 
 printf 'hys_db,run_tag,pid,cpu_id,launcher_log\n' > "${jobs_file}"
@@ -109,8 +109,8 @@ for ((wave_start = 0; wave_start < ${#hys_values[@]}; wave_start += max_parallel
           --centralFrequency35=3.5e9 \
           --bandwidth35=10e6 \
           --numerology=0 \
-          --sionnaCacheFile18=scenarios/khu-real/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5 \
-          --sionnaCacheFile35=scenarios/khu-real/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5 \
+          --sionnaCacheFile18=scenarios/khu-real/ret_caches/tilt_5deg/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5 \
+          --sionnaCacheFile35=scenarios/khu-real/ret_caches/tilt_5deg/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5 \
           --sionnaUpdatePeriod=1s \
           --udpBaseIntervalMs=200 \
           --trafficMultiplierEnabled=true \
@@ -127,7 +127,7 @@ for ((wave_start = 0; wave_start < ${#hys_values[@]}; wave_start += max_parallel
           --cellHysteresisDb="gNB_5G:${hys_value},gNB_4G_1:${hys_value},gNB_4G_2:${hys_value}" \
           --cellTttMs=gNB_5G:256,gNB_4G_1:256,gNB_4G_2:256 \
           --cellRetBearingDeg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10 \
-          --cellRetTiltDeg=gNB_5G:15,gNB_4G_1:15,gNB_4G_2:15
+          --cellRetTiltDeg=gNB_5G:5,gNB_4G_1:5,gNB_4G_2:5
     ) > "${launcher_log}" 2>&1 &
 
     pid=$!

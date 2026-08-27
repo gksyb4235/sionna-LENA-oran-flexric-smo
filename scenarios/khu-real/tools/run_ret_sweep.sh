@@ -9,7 +9,7 @@ export SWEEP_VALUES="${RET_VALUES:-1 3 5 7 9 12}"
 export SWEEP_RESULTS_ROOT="${RET_RESULTS_ROOT:-${repo_root}/scenarios/results/RET_test}"
 export SWEEP_NAME="${RET_SWEEP_NAME:-sweep_$(date +%Y%m%d_%H%M%S)}"
 export SWEEP_SIM_TIME="${RET_SIM_TIME:-900}"
-export SWEEP_MAX_PARALLEL="${RET_MAX_PARALLEL:-4}"
+export SWEEP_MAX_PARALLEL="${RET_MAX_PARALLEL:-3}"
 export SWEEP_MEMORY_LIMIT_BYTES="${RET_MEMORY_LIMIT_BYTES:-3221225472}"
 
 # Defaults to:
