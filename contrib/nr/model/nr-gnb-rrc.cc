@@ -440,13 +440,8 @@ NrUeManager::SetupDataRadioBearer(NrQosFlow flow,
     NS_LOG_FUNCTION(this << (uint32_t)m_rnti);
 
     Ptr<NrDataRadioBearerInfo> drbInfo = CreateObject<NrDataRadioBearerInfo>();
-    uint8_t drbid = AddDataRadioBearerInfo(drbInfo);
+    uint8_t drbid = AddDataRadioBearerInfo(drbInfo, qfi);
     uint8_t lcid = nr::Drbid2Lcid(drbid);
-    uint8_t qosFlowId = nr::Drbid2Qfi(drbid);
-    NS_ASSERT_MSG(qfi == 0 || qosFlowId == qfi,
-                  "QFI mismatch (" << (uint32_t)qosFlowId << " != " << (uint32_t)qfi
-                                   << ", the assumption that ID are allocated in the same "
-                                      "way by MME and RRC is not valid any more");
     drbInfo->m_qosFlow = flow;
     drbInfo->m_qosFlowIdentity = qfi;
     drbInfo->m_drbIdentity = drbid;
@@ -1639,10 +1634,38 @@ NrUeManager::BuildHoCancelMsg()
 }
 
 uint8_t
-NrUeManager::AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> drbInfo)
+NrUeManager::AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> drbInfo, uint8_t qfi)
 {
     NS_LOG_FUNCTION(this);
     const uint8_t MAX_DRB_ID = 32;
+
+    if (qfi != 0)
+    {
+        // The MME's QFI is authoritative. Deriving the DRBID from it directly
+        // (DRBID = QFI + 2, see nr-common.cc) keeps the two sides in
+        // agreement by construction, instead of letting this round-robin
+        // allocator independently pick a (possibly reused) free slot and
+        // hoping it happens to match the MME's ever-incrementing, never-reused
+        // flow counter -- which it stops doing as soon as any bearer for this
+        // UE has been released and a new one set up (see NrEpcMmeApplication's
+        // per-UE flowCounter).
+        uint8_t drbid = nr::Qfi2Drbid(qfi);
+        NS_ABORT_MSG_IF(drbid == 0 || drbid == 1 || drbid == 2 || drbid == 4 ||
+                            drbid >= MAX_DRB_ID,
+                        "QFI " << (uint32_t)qfi << " maps to an unusable DRBID "
+                               << (uint32_t)drbid << " for RNTI " << m_rnti);
+        NS_ABORT_MSG_IF(m_drbMap.find(drbid) != m_drbMap.end(),
+                        "DRBID " << (uint32_t)drbid << " (QFI " << (uint32_t)qfi
+                                 << ") is already in use for RNTI " << m_rnti);
+        m_drbMap.insert(std::pair<uint8_t, Ptr<NrDataRadioBearerInfo>>(drbid, drbInfo));
+        drbInfo->m_drbIdentity = drbid;
+        m_lastAllocatedDrbid = drbid;
+        NS_LOG_DEBUG("Allocated DRBID " << (uint32_t)drbid << " (LCID " << (uint32_t)drbid
+                                        << ") for RNTI " << m_rnti << " from QFI "
+                                        << (uint32_t)qfi);
+        return drbid;
+    }
+
     for (int drbid = (m_lastAllocatedDrbid + 1) % MAX_DRB_ID; drbid != m_lastAllocatedDrbid;
          drbid = (drbid + 1) % MAX_DRB_ID)
     {

@@ -499,10 +499,15 @@ class NR_EXPORT NrUeManager : public Object
      * Add a new NrDataRadioBearerInfo structure to the NrUeManager
      *
      * @param radioBearerInfo
+     * @param qfi the QoS flow identifier assigned by the MME for this bearer,
+     *        or 0 if the caller has no preference. When non-zero, the DRBID
+     *        is derived directly from the QFI (DRBID = QFI + 2) instead of
+     *        being independently round-robin allocated, so it always agrees
+     *        with the MME's id.
      *
      * @return the id of the newly added data radio bearer structure
      */
-    uint8_t AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> radioBearerInfo);
+    uint8_t AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> radioBearerInfo, uint8_t qfi = 0);
 
     /**
      * @param drbid the Data Radio Bearer id
