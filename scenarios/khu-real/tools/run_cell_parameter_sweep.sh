@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Shared runner used by run_txp_sweep.sh, run_cio_sweep.sh, and
-# run_ret_sweep.sh. Invoke one of those wrappers instead of this file.
+# Shared runner used by run_ttt_sweep.sh, run_txp_sweep.sh, run_cio_sweep.sh,
+# and run_ret_sweep.sh. Invoke one of those wrappers instead of this file.
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../.." && pwd)"
@@ -62,7 +62,7 @@ if ((${#sweep_values[@]} == 0)); then
   printf 'SWEEP_VALUES must contain at least one value\n' >&2
   exit 1
 fi
-if [[ "${sweep_kind}" != "TXP" && "${sweep_kind}" != "CIO" && "${sweep_kind}" != "RET" ]]; then
+if [[ "${sweep_kind}" != "TTT" && "${sweep_kind}" != "TXP" && "${sweep_kind}" != "CIO" && "${sweep_kind}" != "RET" ]]; then
   printf 'Unsupported SWEEP_KIND: %s\n' "${sweep_kind}" >&2
   exit 1
 fi
@@ -180,6 +180,7 @@ for ((wave_start = 0; wave_start < ${#sweep_values[@]}; wave_start += max_parall
     label="$(safe_label "${value}")"
     cpu_id="${physical_core_cpus[slot]}"
 
+    ttt_ms=256
     txp_map='gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43'
     cio_map='gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0'
     tilt_map='gNB_5G:5,gNB_4G_1:5,gNB_4G_2:5'
@@ -187,6 +188,10 @@ for ((wave_start = 0; wave_start < ${#sweep_values[@]}; wave_start += max_parall
     cache35="${cache35_default}"
 
     case "${sweep_kind}" in
+      TTT)
+        ttt_ms="${value}"
+        run_tag="TTT_${label}ms_all3_seed12_bw10M_hys2p5dB"
+        ;;
       TXP)
         txp_map="gNB_5G:${value},gNB_4G_1:${value},gNB_4G_2:${value}"
         run_tag="TxP_${label}dBm_all3_seed12_bw10M_ttt256ms_hys2p5dB"
@@ -231,12 +236,12 @@ for ((wave_start = 0; wave_start < ${#sweep_values[@]}; wave_start += max_parall
           --N_Ues=300 \
           --resultsRoot="${sweep_root}" \
           --runTag="${run_tag}" \
-          --handoverTtt=256 \
+          --handoverTtt="${ttt_ms}" \
           --handoverHysteresis=2.5 \
           --cellCioDb="${cio_map}" \
           --cellTxPowerDbm="${txp_map}" \
           --cellHysteresisDb=gNB_5G:2.5,gNB_4G_1:2.5,gNB_4G_2:2.5 \
-          --cellTttMs=gNB_5G:256,gNB_4G_1:256,gNB_4G_2:256 \
+          --cellTttMs="gNB_5G:${ttt_ms},gNB_4G_1:${ttt_ms},gNB_4G_2:${ttt_ms}" \
           --cellRetBearingDeg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10 \
           --cellRetTiltDeg="${tilt_map}"
     ) > "${launcher_log}" 2>&1 &
