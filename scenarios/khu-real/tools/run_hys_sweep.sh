@@ -51,7 +51,7 @@ completion_file="${sweep_root}/completion.csv"
   printf 'bandwidth18_hz=10000000\n'
   printf 'bandwidth35_hz=10000000\n'
   printf 'ttt_ms=256\n'
-  printf 'cio_db=gNB_5G:3,gNB_4G_1:0,gNB_4G_2:0\n'
+  printf 'cio_db=gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0\n'
   printf 'tx_power_dbm=gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43\n'
   printf 'ret_bearing_deg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10\n'
   printf 'ret_tilt_deg=gNB_5G:15,gNB_4G_1:15,gNB_4G_2:15\n'
@@ -61,6 +61,7 @@ printf 'hys_db,run_tag,pid,cpu_id,launcher_log\n' > "${jobs_file}"
 printf 'hys_db,run_tag,pid,cpu_id,exit_code,finished_at\n' > "${completion_file}"
 
 active_pids=()
+sweep_failed=0
 terminate_active()
 {
   if ((${#active_pids[@]} > 0)); then
@@ -121,7 +122,7 @@ for ((wave_start = 0; wave_start < ${#hys_values[@]}; wave_start += max_parallel
           --runTag="${run_tag}" \
           --handoverTtt=256 \
           --handoverHysteresis="${hys_value}" \
-          --cellCioDb=gNB_5G:3,gNB_4G_1:0,gNB_4G_2:0 \
+          --cellCioDb=gNB_5G:0,gNB_4G_1:0,gNB_4G_2:0 \
           --cellTxPowerDbm=gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43 \
           --cellHysteresisDb="gNB_5G:${hys_value},gNB_4G_1:${hys_value},gNB_4G_2:${hys_value}" \
           --cellTttMs=gNB_5G:256,gNB_4G_1:256,gNB_4G_2:256 \
@@ -144,6 +145,7 @@ for ((wave_start = 0; wave_start < ${#hys_values[@]}; wave_start += max_parallel
       exit_code=0
     else
       exit_code=$?
+      sweep_failed=1
     fi
     printf '[complete] HYS=%s dB pid=%s exit=%s\n' \
       "${active_hys[slot]}" "${pid}" "${exit_code}"
@@ -155,4 +157,8 @@ done
 
 active_pids=()
 trap - INT TERM
+if ((sweep_failed != 0)); then
+  printf '[HYS sweep] one or more runs failed: %s\n' "${sweep_root}" >&2
+  exit 1
+fi
 printf '[HYS sweep] all runs completed: %s\n' "${sweep_root}"

@@ -318,6 +318,8 @@ def main():
     parser.add_argument("--ue-cols", type=int, default=DEFAULT_UE_COLS)
     parser.add_argument("--gnb-prefix", default="",
                         help="only build gNB IDs beginning with this prefix")
+    parser.add_argument("--tilt-deg", type=float, default=None,
+                        help="override downtilt in degrees for every selected gNB")
     parser.add_argument("--max-paths", type=int, default=MAX_PATHS)
     parser.add_argument("--max-depth", type=int, default=MAX_DEPTH)
     parser.add_argument("--diffuse-reflection", action="store_true",
@@ -338,6 +340,11 @@ def main():
         gnbs = [g for g in gnbs if g["name"].startswith(args.gnb_prefix)]
     if not gnbs:
         raise RuntimeError(f"no gNB IDs matched prefix {args.gnb_prefix!r}")
+    if args.tilt_deg is not None:
+        if not math.isfinite(args.tilt_deg):
+            raise ValueError("tilt must be finite")
+        for gnb in gnbs:
+            gnb["tilt_deg"] = args.tilt_deg
     for g in gnbs:
         print(f"  {g['name']}: pos={g['pos']} bearing={g['bearing_deg']} tilt={g['tilt_deg']}")
 
