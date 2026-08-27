@@ -120,8 +120,9 @@ class InfluxWriter:
                        ret_bearing_deg: float, ttt_ms: float, hysteresis_db: float,
                        num_ues: int, avg_rsrp_dbm: float, ho_in_count: int,
                        ho_out_count: int, pingpong_count: int,
-                       aggregate_throughput_mbps: float,
+                       avg_throughput_mbps: float,
                        prb_utilization_pct: float | None = None,
+                       energy_state: str | None = None,
                        tx_power_watts: float | None = None,
                        energy_efficiency_mbps_per_w: float | None = None) -> bool:
         fields = {
@@ -134,7 +135,7 @@ class InfluxWriter:
             "ho_in_count": int(ho_in_count),
             "ho_out_count": int(ho_out_count),
             "pingpong_count": int(pingpong_count),
-            "aggregate_throughput_mbps": float(aggregate_throughput_mbps),
+            "avg_throughput_mbps": float(avg_throughput_mbps),
         }
         # No UE attached this period -> nothing was measured, so omit the
         # field entirely (InfluxDB/Grafana render a gap) instead of writing
@@ -144,6 +145,8 @@ class InfluxWriter:
             fields["avg_rsrp_dbm"] = float(avg_rsrp_dbm)
         if prb_utilization_pct is not None:
             fields["prb_utilization_pct"] = float(prb_utilization_pct)
+        if energy_state is not None:
+            fields["energy_state"] = str(energy_state)
         if tx_power_watts is not None:
             fields["tx_power_watts"] = float(tx_power_watts)
         if energy_efficiency_mbps_per_w is not None:

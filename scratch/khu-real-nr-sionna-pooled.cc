@@ -451,6 +451,50 @@ struct UeKpiState
 
 static std::map<uint64_t, UeKpiState> g_ueKpi; //!< keyed by IMSI (== keyed by slot, 1 IMSI/slot for life)
 
+// One row per (report tick, UE) / (report tick, cell), same fields and same
+// per-tick cadence (kpiReportInterval) as what ReportKpiToInflux sends to
+// InfluxDB -- buffered here so the exact same data is available as CSV at
+// the end of the run regardless of whether InfluxDB is reachable/enabled.
+struct UeKpiCsvRow
+{
+    double time;
+    std::string ue;
+    std::string servingCell;
+    double rsrpServingDbm;
+    std::string neighborCell;
+    double rsrpNeighborDbm;
+    double dlThroughputMbps;
+    uint32_t hoCount;
+    double secondsSinceHo;
+    bool isPingPong;
+    double dlSinrDb;
+    int dlMcs;
+};
+
+struct CellKpiCsvRow
+{
+    double time;
+    std::string cell;
+    double txPowerDbm;
+    double retTiltDeg;
+    double retBearingDeg;
+    double tttMs;
+    double hysteresisDb;
+    int numUes;
+    double avgRsrpDbm; // NaN if no UE was attached this tick
+    uint32_t hoInCount;
+    uint32_t hoOutCount;
+    uint32_t pingPongCount;
+    double avgThroughputMbps;
+    double prbUtilizationPct;
+    std::string energyState;
+    double txPowerWatts;
+    double energyEfficiencyMbpsPerW;
+};
+
+static std::vector<UeKpiCsvRow> g_ueKpiCsvRows;
+static std::vector<CellKpiCsvRow> g_cellKpiCsvRows;
+
 struct CellKpiState
 {
     std::string name;
@@ -464,6 +508,65 @@ struct CellKpiState
 };
 
 static std::map<uint16_t, CellKpiState> g_cellKpi;
+
+// Cumulative-since-start-of-sim cell counters (hoInCount/hoOutCount/
+// pingPongCount are never reset elsewhere, see LogHandoverEndOk), printed
+// once at the very end instead of live per-second InfluxDB writes -- lets a
+// run without --influxSrc (or with InfluxDB down) still leave a summary
+// instead of nothing at all.
+static void
+PrintFinalKpiSummary()
+{
+    std::cout << "\n=== Final Cell KPI Summary ===\n";
+    uint32_t totalHo = 0;
+    uint32_t totalPingPong = 0;
+    for (const auto& [cellId, cell] : g_cellKpi)
+    {
+        std::cout << "  " << cell.name << ": ho_in=" << cell.hoInCount
+                  << " ho_out=" << cell.hoOutCount << " ping_pong=" << cell.pingPongCount << "\n";
+        totalHo += cell.hoInCount;
+        totalPingPong += cell.pingPongCount;
+    }
+    std::cout << "  TOTAL: handovers=" << totalHo << " ping_pongs=" << totalPingPong << "\n";
+}
+
+// Dumps every buffered per-tick row (same cadence/fields as
+// ReportKpiToInflux's InfluxDB writes -- see g_ueKpiCsvRows/g_cellKpiCsvRows)
+// to two CSV files, so a full metric history survives the run even without
+// InfluxDB/Grafana.
+static void
+WriteKpiCsvFiles(const std::string& ueCsvPath, const std::string& cellCsvPath)
+{
+    std::ofstream ueCsv(ueCsvPath);
+    ueCsv << "time_s,ue,serving_cell,rsrp_serving_dbm,neighbor_cell,rsrp_neighbor_dbm,"
+             "dl_throughput_mbps,ho_count,seconds_since_ho,is_pingpong,dl_sinr_db,dl_mcs\n";
+    for (const auto& r : g_ueKpiCsvRows)
+    {
+        ueCsv << r.time << ',' << r.ue << ',' << r.servingCell << ',' << r.rsrpServingDbm << ','
+              << r.neighborCell << ',' << r.rsrpNeighborDbm << ',' << r.dlThroughputMbps << ','
+              << r.hoCount << ',' << r.secondsSinceHo << ',' << (r.isPingPong ? 1 : 0) << ','
+              << r.dlSinrDb << ',' << r.dlMcs << '\n';
+    }
+
+    std::ofstream cellCsv(cellCsvPath);
+    cellCsv << "time_s,cell,tx_power_dbm,ret_tilt_deg,ret_bearing_deg,ttt_ms,hysteresis_db,"
+               "num_ues,avg_rsrp_dbm,ho_in_count,ho_out_count,pingpong_count,"
+               "avg_throughput_mbps,prb_utilization_pct,energy_state,tx_power_watts,"
+               "energy_efficiency_mbps_per_w\n";
+    for (const auto& r : g_cellKpiCsvRows)
+    {
+        cellCsv << r.time << ',' << r.cell << ',' << r.txPowerDbm << ',' << r.retTiltDeg << ','
+                << r.retBearingDeg << ',' << r.tttMs << ',' << r.hysteresisDb << ',' << r.numUes
+                << ',' << r.avgRsrpDbm << ',' << r.hoInCount << ',' << r.hoOutCount << ','
+                << r.pingPongCount << ',' << r.avgThroughputMbps << ',' << r.prbUtilizationPct
+                << ',' << r.energyState << ',' << r.txPowerWatts << ','
+                << r.energyEfficiencyMbpsPerW << '\n';
+    }
+
+    std::cout << "[kpi-csv] wrote " << g_ueKpiCsvRows.size() << " UE rows to '" << ueCsvPath
+              << "' and " << g_cellKpiCsvRows.size() << " cell rows to '" << cellCsvPath
+              << "'\n";
+}
 
 static std::map<std::pair<uint16_t, uint16_t>, uint64_t> g_cellRntiToImsi;
 static std::map<uint16_t, uint64_t> g_rntiToImsi;
@@ -584,10 +687,8 @@ RecordSlotDataStatsForKpi(const SfnSf& /* sfnSf */,
 static void
 ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
 {
-    if (!g_influxClient || g_influxClient->is_none())
-    {
-        return;
-    }
+    const bool influxAvailable = g_influxClient && !g_influxClient->is_none();
+    const double now = Simulator::Now().GetSeconds();
 
     std::map<uint16_t, uint32_t> cellUeCount;
     std::map<uint16_t, double> cellRsrpSum;
@@ -648,24 +749,40 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
         double secondsSinceHo =
             (ue.hoCount > 0) ? (Simulator::Now().GetSeconds() - ue.lastHoTime) : -1.0;
 
-        try
+        if (influxAvailable)
         {
-            g_influxClient->attr("write_ue_kpi")(ue.name,
-                                                 servingCellName,
-                                                 rsrpServing,
-                                                 bestNeighborName,
-                                                 bestNeighborRsrp,
-                                                 throughputMbps,
-                                                 ue.hoCount,
-                                                 secondsSinceHo,
-                                                 ue.isPingPong,
-                                                 ue.dlSinrDb,
-                                                 static_cast<int>(ue.dlMcs));
+            try
+            {
+                g_influxClient->attr("write_ue_kpi")(ue.name,
+                                                     servingCellName,
+                                                     rsrpServing,
+                                                     bestNeighborName,
+                                                     bestNeighborRsrp,
+                                                     throughputMbps,
+                                                     ue.hoCount,
+                                                     secondsSinceHo,
+                                                     ue.isPingPong,
+                                                     ue.dlSinrDb,
+                                                     static_cast<int>(ue.dlMcs));
+            }
+            catch (const py::error_already_set& error)
+            {
+                NS_LOG_UNCOND("[influx] write_ue_kpi failed (ignoring): " << error.what());
+            }
         }
-        catch (const py::error_already_set& error)
-        {
-            NS_LOG_UNCOND("[influx] write_ue_kpi failed (ignoring): " << error.what());
-        }
+
+        g_ueKpiCsvRows.push_back({now,
+                                  ue.name,
+                                  servingCellName,
+                                  rsrpServing,
+                                  bestNeighborName,
+                                  bestNeighborRsrp,
+                                  throughputMbps,
+                                  ue.hoCount,
+                                  secondsSinceHo,
+                                  ue.isPingPong,
+                                  ue.dlSinrDb,
+                                  static_cast<int>(ue.dlMcs)});
 
         cellUeCount[servingCellId]++;
         cellRsrpSum[servingCellId] += rsrpServing;
@@ -679,7 +796,9 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
         uint32_t numUes = cellUeCount.count(cellId) ? cellUeCount[cellId] : 0;
         double avgRsrp = (numUes > 0) ? (cellRsrpSum[cellId] / numUes)
                                        : std::numeric_limits<double>::quiet_NaN();
-        double aggThroughput = cellThroughputSum.count(cellId) ? cellThroughputSum[cellId] : 0.0;
+        double cellThroughputTotal =
+            cellThroughputSum.count(cellId) ? cellThroughputSum[cellId] : 0.0;
+        double avgThroughput = (numUes > 0) ? (cellThroughputTotal / numUes) : 0.0;
 
         double retTiltDeg = 0.0;
         double retBearingDeg = 0.0;
@@ -711,26 +830,83 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
         cell.prbUsedAccum = 0;
         cell.prbCapacityAccum = 0;
 
-        try
+        // Linear (EARTH-style) power model: P = P0 + deltaP * Ptx when the
+        // cell is ON, so RET/scheduling-driven throughput changes never move
+        // power on their own -- only TxPower does, via ApplyEnergyState's
+        // -100dBm (OFF) / -20dB (SLEEP) knobs. OFF/SLEEP use fixed low
+        // wattages instead of the linear formula: at -100dBm, Ptx is ~0W, so
+        // the formula would otherwise still report near-full P0 baseband
+        // overhead as if the radio chain were still fully powered up.
+        constexpr double kP0Watts = 130.0;
+        constexpr double kDeltaP = 4.7;
+        constexpr double kSleepPowerWatts = 30.0;
+        constexpr double kOffPowerWatts = 5.0;
+        std::string energyState = "ON";
+        if (cell.gnbDev)
         {
-            g_influxClient->attr("write_cell_kpi")(cell.name,
-                                                   liveTxPowerDbm,
-                                                   retTiltDeg,
-                                                   retBearingDeg,
-                                                   g_handoverTtTMs,
-                                                   g_handoverHysteresisDb,
-                                                   static_cast<int>(numUes),
-                                                   avgRsrp,
-                                                   cell.hoInCount,
-                                                   cell.hoOutCount,
-                                                   cell.pingPongCount,
-                                                   aggThroughput,
-                                                   prbUtilizationPct);
+            energyState = DynamicCast<NrGnbNetDevice>(cell.gnbDev)->GetEnergyStateName();
         }
-        catch (const py::error_already_set& error)
+        double totalPowerWatts;
+        if (energyState == "OFF")
         {
-            NS_LOG_UNCOND("[influx] write_cell_kpi failed (ignoring): " << error.what());
+            totalPowerWatts = kOffPowerWatts;
         }
+        else if (energyState == "SLEEP")
+        {
+            totalPowerWatts = kSleepPowerWatts;
+        }
+        else
+        {
+            double txPowerWatts = pow(10.0, liveTxPowerDbm / 10.0) / 1000.0;
+            totalPowerWatts = kP0Watts + kDeltaP * txPowerWatts;
+        }
+        double energyEfficiencyMbpsPerW =
+            (totalPowerWatts > 0.0) ? (cellThroughputTotal / totalPowerWatts) : 0.0;
+
+        if (influxAvailable)
+        {
+            try
+            {
+                g_influxClient->attr("write_cell_kpi")(cell.name,
+                                                       liveTxPowerDbm,
+                                                       retTiltDeg,
+                                                       retBearingDeg,
+                                                       g_handoverTtTMs,
+                                                       g_handoverHysteresisDb,
+                                                       static_cast<int>(numUes),
+                                                       avgRsrp,
+                                                       cell.hoInCount,
+                                                       cell.hoOutCount,
+                                                       cell.pingPongCount,
+                                                       avgThroughput,
+                                                       prbUtilizationPct,
+                                                       energyState,
+                                                       totalPowerWatts,
+                                                       energyEfficiencyMbpsPerW);
+            }
+            catch (const py::error_already_set& error)
+            {
+                NS_LOG_UNCOND("[influx] write_cell_kpi failed (ignoring): " << error.what());
+            }
+        }
+
+        g_cellKpiCsvRows.push_back({now,
+                                    cell.name,
+                                    liveTxPowerDbm,
+                                    retTiltDeg,
+                                    retBearingDeg,
+                                    g_handoverTtTMs,
+                                    g_handoverHysteresisDb,
+                                    static_cast<int>(numUes),
+                                    avgRsrp,
+                                    cell.hoInCount,
+                                    cell.hoOutCount,
+                                    cell.pingPongCount,
+                                    avgThroughput,
+                                    prbUtilizationPct,
+                                    energyState,
+                                    totalPowerWatts,
+                                    energyEfficiencyMbpsPerW});
     }
 
     Simulator::Schedule(Seconds(intervalSec), &ReportKpiToInflux, ueNetDev, intervalSec);
@@ -954,6 +1130,11 @@ main(int argc, char* argv[])
     double handoverTtTMs = 256.0;
     double handoverHysteresisDb = 3.0;
 
+    bool trafficMultiplierEnabled = true; // false = flat 400kbps/session baseline, for A/B perf comparison
+
+    std::string ueKpiCsvPath = "ue_kpi.csv";
+    std::string cellKpiCsvPath = "cell_kpi.csv";
+
     uint32_t poolSizeOverride = 0; // 0 = auto (== exact max-concurrent from the trace)
 
     SionnaRtChannelModel::RtPathSolverConfig RtPathSolverConfig;
@@ -1008,6 +1189,13 @@ main(int argc, char* argv[])
     cmd.AddValue("kpiReportInterval", "Seconds between KPI reports to InfluxDB", kpiReportInterval);
     cmd.AddValue("handoverTtt", "Handover time-to-trigger (ms)", handoverTtTMs);
     cmd.AddValue("handoverHysteresis", "Handover hysteresis (dB)", handoverHysteresisDb);
+    cmd.AddValue("trafficMultiplierEnabled",
+                "Randomize per-session traffic 2x-20x (false = flat 400kbps baseline)",
+                trafficMultiplierEnabled);
+    cmd.AddValue("ueKpiCsvPath", "Output CSV path for per-second UE KPI history", ueKpiCsvPath);
+    cmd.AddValue("cellKpiCsvPath",
+                "Output CSV path for per-second cell KPI history",
+                cellKpiCsvPath);
     cmd.Parse(argc, argv);
 
     g_handoverTtTMs = handoverTtTMs;
@@ -1378,6 +1566,18 @@ main(int argc, char* argv[])
 
     ApplicationContainer clientApps;
 
+    // Per-session traffic scaling: each real-person session is randomly
+    // assigned a "how many actual people this session's demand represents"
+    // multiplier, uniform in [2x,20x) the base 400kbps single-UE rate --
+    // rather than every session requesting an identical flat 400kbps. The
+    // multiplier is applied as Interval = baseInterval / multiplier (same
+    // PacketSize), so a session drawn at 5x simply sends packets 5x as
+    // often.
+    constexpr double kBaseIntervalMs = 20.0;
+    Ptr<UniformRandomVariable> trafficMultiplierRv = CreateObject<UniformRandomVariable>();
+    trafficMultiplierRv->SetAttribute("Min", DoubleValue(2.0));
+    trafficMultiplierRv->SetAttribute("Max", DoubleValue(20.0));
+
     // ---- Per-session scheduling: arrival (attach/handover + KPI reset +
     // traffic start), interior position updates, and departure (traffic stop
     // already handled by clientApp.Stop()). ----
@@ -1515,21 +1715,27 @@ main(int argc, char* argv[])
         double stop = std::min(session.end, simTime.GetSeconds());
         if (stop > start)
         {
+            double multiplier = trafficMultiplierEnabled ? trafficMultiplierRv->GetValue() : 1.0;
+            double intervalMs = kBaseIntervalMs / multiplier;
+
             UdpClientHelper dlClient(ueIpIface.GetAddress(slot), dlPort);
-            dlClient.SetAttribute("Interval", TimeValue(MilliSeconds(20)));
+            dlClient.SetAttribute("Interval", TimeValue(MilliSeconds(intervalMs)));
             dlClient.SetAttribute("MaxPackets", UintegerValue(1000000));
             dlClient.SetAttribute("PacketSize", UintegerValue(1024));
             ApplicationContainer clientApp = dlClient.Install(remoteHost);
             clientApp.Start(Seconds(start));
             clientApp.Stop(Seconds(stop));
             clientApps.Add(clientApp);
+            NS_LOG_UNCOND("[traffic] t=" << start << " slot=" << slot << " '" << traceId
+                                         << "' multiplier=" << multiplier << "x ("
+                                         << (400.0 * multiplier) << " kbps)");
         }
     }
 
-    if (!influxClient.is_none())
-    {
-        Simulator::Schedule(trafficStart, &ReportKpiToInflux, ueNetDev, kpiReportInterval);
-    }
+    // Always schedule KPI collection (drives both the CSV row buffers and,
+    // when --influxSrc was given, the live InfluxDB writes) -- CSV export
+    // should work the same whether or not InfluxDB is enabled/reachable.
+    Simulator::Schedule(trafficStart, &ReportKpiToInflux, ueNetDev, kpiReportInterval);
 
     FlowMonitorHelper flowmonHelper;
     NodeContainer endpointNodes;
@@ -1584,6 +1790,9 @@ main(int argc, char* argv[])
         std::cout << "  Rx Packets: " << i->second.rxPackets << "\n";
     }
     std::cout << "\nMean flow throughput: " << (averageFlowThroughput / stats.size()) << " Mbps\n";
+
+    PrintFinalKpiSummary();
+    WriteKpiCsvFiles(ueKpiCsvPath, cellKpiCsvPath);
 
     Simulator::Destroy();
 

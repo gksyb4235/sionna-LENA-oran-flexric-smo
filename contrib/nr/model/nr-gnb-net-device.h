@@ -242,6 +242,12 @@ class NR_EXPORT NrGnbNetDevice : public NrNetDevice
 
     bool m_forceE2FileLogging;
 
+    /**
+     * @return "ON", "OFF", or "SLEEP" per the cell's current E2SM-RC-driven
+     * energy state (see ApplyEnergyState).
+     */
+    std::string GetEnergyStateName() const;
+
   protected:
     void DoInitialize() override;
 

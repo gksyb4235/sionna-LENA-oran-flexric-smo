@@ -2671,9 +2671,9 @@ NrUeRrc::MeasurementReportTriggering(uint8_t measId)
                  * This is to check that the triggered cell recorded in the
                  * VarMeasReportList is the serving cell.
                  */
-                NS_ASSERT(measReportIt->second.cellsTriggeredList.find(m_cellId) !=
+                NS_ASSERT(measReportIt->second.cellsTriggeredList.find(servingCellId) !=
                           measReportIt->second.cellsTriggeredList.end());
-                concernedCellsLeaving.push_back(m_cellId);
+                concernedCellsLeaving.push_back(servingCellId);
                 eventLeavingCondApplicable = true;
             }
         }

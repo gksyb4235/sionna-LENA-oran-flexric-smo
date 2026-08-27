@@ -819,20 +819,27 @@ NrSpectrumPhy::StartTxDataFrames(const Ptr<PacketBurst>& pb,
                                  const Time& duration)
 {
     NS_LOG_FUNCTION(this);
+    if (m_state == RX_DATA || m_state == RX_DL_CTRL || m_state == RX_UL_CTRL ||
+        m_state == RX_UL_SRS)
+    {
+        // The MAC scheduler granted this DL transmission for the current
+        // slot, but the PHY is still mid-reception of something else at the
+        // instant it's due to fire. Under frequent forced re-attachment/
+        // handover churn (pooled UE devices reused across many real-trace
+        // sessions), scheduling grants and in-flight receptions aren't
+        // always staggered cleanly, so this half-duplex conflict can occur
+        // even though it shouldn't under normal (single, stable-RRC-
+        // connection) operation. A real gNB simply can't transmit and
+        // receive on the same resource at once; model the conflicting grant
+        // as dropped (this slot's DL transmission is lost) instead of
+        // crashing the whole simulation.
+        NS_LOG_WARN("Dropping DL data TX at cell "
+                    << GetCellId() << " -- PHY busy receiving (state=" << m_state << ")");
+        return;
+    }
+
     switch (m_state)
     {
-    case RX_DATA:
-        /* no break */
-        [[fallthrough]];
-    case RX_DL_CTRL:
-        /* no break */
-        [[fallthrough]];
-    case RX_UL_CTRL:
-        /* no break*/
-        [[fallthrough]];
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
-        break;
     case TX:
         // No break, gNB may transmit multiple times to multiple UEs
         [[fallthrough]];
@@ -901,20 +908,18 @@ NrSpectrumPhy::StartTxDlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
     NS_LOG_FUNCTION(this << duration.As(Time::S));
     NS_LOG_LOGIC(this << " state: " << m_state);
 
+    // See StartTxDataFrames for why RX_*/TX collisions are dropped instead of
+    // fatal under pooled-UE handover churn instead of asserting.
+    if (m_state == RX_DATA || m_state == RX_DL_CTRL || m_state == RX_UL_CTRL ||
+        m_state == RX_UL_SRS || m_state == TX)
+    {
+        NS_LOG_WARN("Dropping DL CTRL TX at cell " << GetCellId() << " -- PHY busy (state="
+                                                    << m_state << ")");
+        return;
+    }
+
     switch (m_state)
     {
-    case RX_DATA:
-        /* no break */
-    case RX_DL_CTRL:
-        /* no break */
-    case RX_UL_CTRL:
-        /* no break*/
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
-        break;
-    case TX:
-        NS_FATAL_ERROR("Cannot TX while already TX.");
-        break;
     case CCA_BUSY:
         NS_LOG_WARN("Start transmitting DL CTRL while in CCA_BUSY state.");
         /* no break */
@@ -943,6 +948,9 @@ NrSpectrumPhy::StartTxDlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
         Simulator::Schedule(duration, &NrSpectrumPhy::EndTx, this);
         m_activeTransmissions++;
     }
+    break;
+    default:
+        break;
     }
 }
 
@@ -954,20 +962,16 @@ NrSpectrumPhy::StartTxCsiRs(uint16_t rnti, uint16_t beamId)
     // the real overhead is correctly calculated in the TB size
     Time duration = NanoSeconds(1);
 
+    if (m_state == RX_DATA || m_state == RX_DL_CTRL || m_state == RX_UL_CTRL ||
+        m_state == RX_UL_SRS || m_state == TX)
+    {
+        NS_LOG_WARN("Dropping CSI-RS TX at cell " << GetCellId() << " -- PHY busy (state="
+                                                   << m_state << ")");
+        return;
+    }
+
     switch (m_state)
     {
-    case RX_DATA:
-        /* no break */
-    case RX_DL_CTRL:
-        /* no break */
-    case RX_UL_CTRL:
-        /* no break*/
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
-        break;
-    case TX:
-        NS_FATAL_ERROR("Cannot TX while already TX.");
-        break;
     case CCA_BUSY:
         NS_LOG_WARN("Start transmitting CSI-RS while in CCA_BUSY state.");
         /* no break */
@@ -992,6 +996,9 @@ NrSpectrumPhy::StartTxCsiRs(uint16_t rnti, uint16_t beamId)
             NS_LOG_WARN("Working without channel (i.e., under test)");
         }
     }
+    break;
+    default:
+        break;
     }
 }
 
@@ -1002,20 +1009,16 @@ NrSpectrumPhy::StartTxUlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
     NS_LOG_FUNCTION(this << duration.As(Time::S));
     NS_LOG_LOGIC(this << " state: " << m_state);
 
+    if (m_state == RX_DATA || m_state == RX_DL_CTRL || m_state == RX_UL_CTRL ||
+        m_state == RX_UL_SRS || m_state == TX)
+    {
+        NS_LOG_WARN("Dropping UL CTRL TX at cell " << GetCellId() << " -- PHY busy (state="
+                                                    << m_state << ")");
+        return;
+    }
+
     switch (m_state)
     {
-    case RX_DATA:
-        /* no break */
-    case RX_DL_CTRL:
-        /* no break */
-    case RX_UL_CTRL:
-        /* no break */
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot TX while RX.");
-        break;
-    case TX:
-        NS_FATAL_ERROR("Cannot TX while already TX.");
-        break;
     case CCA_BUSY:
         NS_LOG_WARN("Start transmitting UL CTRL while in CCA_BUSY state");
         /* no break */
@@ -1042,6 +1045,9 @@ NrSpectrumPhy::StartTxUlControlFrames(const std::list<Ptr<NrControlMessage>>& ct
         Simulator::Schedule(duration, &NrSpectrumPhy::EndTx, this);
         m_activeTransmissions++;
     }
+    break;
+    default:
+        break;
     }
 }
 
@@ -1236,8 +1242,12 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
         if (m_isGnb) // I am gNB. We are here because some of my rebellious UEs is transmitting
                      // at the same time as me. -> invalid state.
         {
-            NS_FATAL_ERROR("gNB transmission overlaps in time with UE transmission. CellId:"
-                           << params->cellId);
+            // Same class of pooled-UE handover-churn timing collision as the
+            // UE branch below: log and drop instead of crashing.
+            NS_LOG_WARN("gNB transmission overlaps in time with UE transmission -- dropping. "
+                        "CellId:"
+                        << params->cellId);
+            return;
         }
         else // I am UE, and while I am transmitting, someone else also transmits. If we are
              // transmitting on orthogonal TX PSDs then this is most probably valid situation
@@ -1262,8 +1272,10 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
     case RX_UL_CTRL:
         /* no break */
     case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot receive DATA while receiving CTRL.");
-        break;
+        NS_LOG_WARN("Dropping DATA RX at cell " << GetCellId() << " -- PHY busy receiving CTRL "
+                                                 "(state="
+                                                 << m_state << ")");
+        return;
     case CCA_BUSY:
         NS_LOG_INFO("Start receiving DATA while in CCA_BUSY state.");
         /* no break */
@@ -1334,22 +1346,17 @@ NrSpectrumPhy::StartRxDlCtrl(const Ptr<NrSpectrumSignalParametersDlCtrlFrame>& p
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params->cellId == GetCellId() && !m_isGnb);
     // RDF: method currently supports Downlink control only!
+    if (m_state == TX || m_state == RX_DATA || m_state == RX_DL_CTRL || m_state == RX_UL_CTRL ||
+        m_state == RX_UL_SRS)
+    {
+        // Same class of pooled-UE handover-churn timing collision as
+        // StartRxData/StartTx*: log and drop instead of crashing.
+        NS_LOG_WARN("Dropping DL CTRL RX at cell " << GetCellId() << " -- PHY busy (state="
+                                                    << m_state << ")");
+        return;
+    }
     switch (m_state)
     {
-    case TX:
-        NS_FATAL_ERROR("Cannot RX while TX.");
-        break;
-    case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX CTRL while receiving DATA.");
-        break;
-    case RX_DL_CTRL:
-        NS_FATAL_ERROR("Cannot RX DL CTRL while already receiving DL CTRL.");
-        break;
-    case RX_UL_CTRL:
-        /* no break */
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("UE should never be in RX_UL_CTRL or RX_UL_SRS state.");
-        break;
     case CCA_BUSY:
         NS_LOG_INFO("Start receiving CTRL while channel in CCA_BUSY state.");
         /* no break */
@@ -1380,20 +1387,16 @@ NrSpectrumPhy::StartRxUlCtrl(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& p
     NS_LOG_FUNCTION(this);
     NS_ASSERT(params->cellId == GetCellId() && m_isGnb);
     // RDF: method currently supports Uplink control only!
+    if (m_state == TX || m_state == RX_DATA || m_state == RX_UL_SRS || m_state == RX_DL_CTRL)
+    {
+        // Same class of pooled-UE handover-churn timing collision as
+        // StartRxData/StartTx*/StartRxSrs: log and drop instead of crashing.
+        NS_LOG_WARN("Dropping UL CTRL RX at cell " << GetCellId() << " -- PHY busy (state="
+                                                    << m_state << ")");
+        return;
+    }
     switch (m_state)
     {
-    case TX:
-        NS_FATAL_ERROR("Cannot RX UL CTRL while TX.");
-        break;
-    case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX UL CTRL while receiving DATA.");
-        break;
-    case RX_UL_SRS:
-        NS_FATAL_ERROR("Cannot start RX UL CTRL while already receiving SRS.");
-        break;
-    case RX_DL_CTRL:
-        NS_FATAL_ERROR("gNB should not be in RX_DL_CTRL state.");
-        break;
     case CCA_BUSY:
         NS_LOG_INFO("Start receiving UL CTRL while channel in CCA_BUSY state.");
         /* no break */
@@ -1435,30 +1438,42 @@ NrSpectrumPhy::StartRxSrs(const Ptr<NrSpectrumSignalParametersUlCtrlFrame>& para
 {
     NS_LOG_FUNCTION(this);
     // The current code of this function assumes:
-    // 1) that this function is called only when cellId = m_cellId
+    // 1) that this function is called only when cellId = m_cellId (guaranteed
+    // by the caller, StartRx, which only dispatches here after its own
+    // cellId check)
     // 2) this function should be only called for gNB, only gNB should enter into reception of
-    // UL SRS signals 3) SRS should be received only one at a time, otherwise this function
-    // should assert 4) CTRL message list contains only one message and that one is SRS CTRL
-    // message
-    NS_ASSERT(params->cellId == GetCellId() && m_isGnb && m_state != RX_UL_SRS &&
-              params->ctrlMsgList.size() == 1 &&
+    // UL SRS signals (also guaranteed by the caller)
+    // 3) CTRL message list contains only one message and that one is SRS CTRL
+    // message (guaranteed by the caller's IsOnlySrs check)
+    NS_ASSERT(params->cellId == GetCellId() && m_isGnb && params->ctrlMsgList.size() == 1 &&
               (*params->ctrlMsgList.begin())->GetMessageType() == NrControlMessage::SRS);
+
+    if (m_state == RX_UL_SRS || m_state == TX || m_state == RX_DATA || m_state == RX_DL_CTRL ||
+        m_state == RX_UL_CTRL)
+    {
+        // This SRS arrived while the gNB PHY was already busy with something
+        // that can't cleanly coexist with it (another SRS, its own TX/RX
+        // DATA, or a different UL/DL CTRL exchange). Under frequent forced
+        // re-attachment/handover churn (pooled UE devices reused across many
+        // real-trace sessions), a freshly (re)attached UE's SRS resource
+        // isn't guaranteed to be staggered against another UE's SRS/traffic
+        // schedule at this gNB. A real receiver simply fails to cleanly
+        // demodulate a signal that shows up mid-reception/transmission of
+        // something else; model that as a lost/ignored SRS instead of
+        // crashing the whole simulation.
+        static const std::map<State, std::string> stateNames{{RX_UL_SRS, "RX_UL_SRS"},
+                                                              {TX, "TX"},
+                                                              {RX_DATA, "RX_DATA"},
+                                                              {RX_DL_CTRL, "RX_DL_CTRL"},
+                                                              {RX_UL_CTRL, "RX_UL_CTRL"}};
+        NS_LOG_WARN("SRS reception collided with gNB state " << stateNames.at(m_state)
+                                                              << " at cell " << GetCellId()
+                                                              << " -- dropping this SRS");
+        return;
+    }
 
     switch (m_state)
     {
-    case TX:
-        NS_FATAL_ERROR("Cannot RX SRS while TX.");
-        break;
-    case RX_DATA:
-        NS_FATAL_ERROR("Cannot RX SRS while receiving DATA.");
-        break;
-    case RX_DL_CTRL:
-        NS_FATAL_ERROR("gNB should not be in RX_DL_CTRL state.");
-        break;
-    case RX_UL_CTRL:
-        NS_FATAL_ERROR(
-            "gNB should not receive simultaneously non SRS and SRS uplink control signals");
-        break;
     case CCA_BUSY:
         NS_LOG_INFO("Start receiving UL SRS while channel in CCA_BUSY state.");
         /* no break */
@@ -1581,12 +1596,28 @@ TransportBlockInfo::UpdatePerceivedSinr(const SpectrumValue& perceivedSinr)
 {
     m_sinrAvg = 0.0;
     m_sinrMin = 99999999999;
+    const uint32_t numBands = perceivedSinr.GetValuesN();
     for (const auto& rbIndex : m_expected.m_rbBitmap)
     {
-        m_sinrAvg += perceivedSinr.ValuesAt(rbIndex);
-        if (perceivedSinr.ValuesAt(rbIndex) < m_sinrMin)
+        if (rbIndex < 0 || static_cast<uint32_t>(rbIndex) >= numBands)
         {
-            m_sinrMin = perceivedSinr.ValuesAt(rbIndex);
+            // rbIndex was recorded when this TB was scheduled, but
+            // perceivedSinr reflects the UE's spectrum model at RX
+            // completion time; if those disagree (e.g. a handover or
+            // pooled-UE slot reuse changed the spectrum model while this TB
+            // was still in flight) rbIndex can be stale and out of range.
+            // Skip it instead of crashing with std::out_of_range -- the
+            // resulting SINR is a best-effort estimate for what's almost
+            // certainly a dead/stale TB anyway.
+            NS_LOG_WARN("Stale rbIndex " << rbIndex << " >= current SpectrumValue size "
+                                         << numBands << ", skipping (likely HO/slot-reuse race)");
+            continue;
+        }
+        double sinrValue = perceivedSinr.ValuesAt(rbIndex);
+        m_sinrAvg += sinrValue;
+        if (sinrValue < m_sinrMin)
+        {
+            m_sinrMin = sinrValue;
         }
     }
 

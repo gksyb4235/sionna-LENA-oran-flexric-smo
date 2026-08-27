@@ -1,0 +1,64 @@
+Updated: 2026-08-27 18:37 KST
+Builder: scenarios/khu-real/tools/build_sionna_rt_cache.py
+Repair tool: scenarios/khu-real/tools/repair_sionna_rt_cache.py
+Position keys use C++ std::lround semantics: x/y to 1 m and z to 0.1 m.
+PathSolver: max_depth=3, los=true, specular_reflection=true,
+            diffuse_reflection=false, diffraction=true,
+            edge_diffraction=true, refraction=false,
+            synthetic_array=false, seed=49
+Zero-path policy: nearest valid spatial row (explicitly recorded in
+                  repaired_from_index); no all-zero channel rows remain.
+
+1.8 GHz low-band NR cache
+--------------------------
+File: sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5
+Command:
+  .venv/bin/python -u scenarios/khu-real/tools/build_sionna_rt_cache.py \
+    --out scenarios/khu-real/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5 \
+    --frequency 1.8e9 --gnb-rows 2 --gnb-cols 2 \
+    --ue-rows 1 --ue-cols 1 --gnb-prefix gNB_4G \
+    --max-paths 256 --batch-size 50 --zero-path-policy nearest
+Groups: gNB_4G_1, gNB_4G_2
+gNB_4G_1: position=(-326.9, 406.6, 57.23), bearing=0 deg, tilt=15 deg
+gNB_4G_2: position=(-381.23, 219.78, 67.5), bearing=10 deg, tilt=15 deg
+Array shape per group: (12670, 1, 4, 256)
+Resolved path count [min, max, mean]:
+  gNB_4G_1=[1, 114, 44.79526440410418]
+  gNB_4G_2=[1, 169, 64.91981057616417]
+Repaired zero-path rows: gNB_4G_1=494, gNB_4G_2=217
+Actual nonzero path counts match num_paths for every row.
+Non-finite rows within valid paths: 0
+Rows at max_paths limit: 0
+Size: 90215770 bytes
+SHA-256: f0ef6c6f8abeb4bf1de3bef9466aa0befd23363bc78971b1af7f13eba282990e
+Previous cache backup:
+  sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5.bak_20260827_180458
+
+3.5 GHz mid-band NR cache
+--------------------------
+File: sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5
+Command:
+  .venv/bin/python -u scenarios/khu-real/tools/build_sionna_rt_cache.py \
+    --out scenarios/khu-real/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5 \
+    --frequency 3.5e9 --gnb-rows 2 --gnb-cols 2 \
+    --ue-rows 1 --ue-cols 1 --gnb-prefix gNB_5G \
+    --max-paths 256 --batch-size 50 --zero-path-policy nearest
+Groups: gNB_5G
+gNB position: (-360.04, 82.73, 82.62), bearing=20 deg, tilt=15 deg
+Array shape: (12670, 1, 4, 256)
+Resolved path count [min, max, mean]: [1, 182, 59.429992107340176]
+Repaired zero-path rows: 260
+Actual nonzero path counts match num_paths for every row.
+Non-finite rows within valid paths: 0
+Rows at max_paths limit: 0
+Size: 49631899 bytes
+SHA-256: cceac43c8178956a90385c8d76a4a682aa3440db9773f67714632be338b60edc
+Previous cache backup:
+  sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5.bak_20260827_180458
+
+Runtime bandwidth note
+----------------------
+The cache contains frequency-, geometry-, array-, and RET-dependent channel paths.
+Changing the ns-3 carrier bandwidth (for example, 15 MHz to 10 MHz at 3.5 GHz)
+does not by itself require rebuilding this cache; ns-3 applies the runtime spectrum
+and resource-block grid separately.

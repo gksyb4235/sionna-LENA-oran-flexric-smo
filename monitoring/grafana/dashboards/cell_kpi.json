@@ -82,7 +82,7 @@
     },
     {
       "id": 4,
-      "title": "Aggregate DL Throughput (Mbps)",
+      "title": "Avg DL Throughput per UE (Mbps)",
       "type": "timeseries",
       "datasource": "InfluxDB",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 7 },
@@ -90,7 +90,7 @@
       "targets": [
         {
           "refId": "A",
-          "query": "SELECT \"aggregate_throughput_mbps\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "query": "SELECT \"avg_throughput_mbps\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
           "rawQuery": true,
           "resultFormat": "time_series",
           "alias": "$tag_cell"
@@ -159,6 +159,57 @@
           "query": "SELECT \"tx_power_dbm\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
           "rawQuery": true,
           "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Total Power Consumption (W)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "fieldConfig": { "defaults": { "unit": "watt", "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"tx_power_watts\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Energy Efficiency (Mbps/W)",
+      "type": "timeseries",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT \"energy_efficiency_mbps_per_w\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "alias": "$tag_cell"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Energy State",
+      "type": "table",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "SELECT last(\"energy_state\") FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+          "rawQuery": true,
+          "resultFormat": "table",
           "alias": "$tag_cell"
         }
       ]

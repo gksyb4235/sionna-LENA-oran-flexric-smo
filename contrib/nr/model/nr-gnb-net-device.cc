@@ -385,6 +385,14 @@ NrGnbNetDevice::ApplyEnergyState(EnergyState state)
                                << applied << " BWP PHY(s)");
 }
 
+std::string
+NrGnbNetDevice::GetEnergyStateName() const
+{
+    return m_energyState == EnergyState::ON
+               ? "ON"
+               : (m_energyState == EnergyState::OFF ? "OFF" : "SLEEP");
+}
+
 void
 NrGnbNetDevice::SetE2Termination(Ptr<E2Termination> e2term)
 {

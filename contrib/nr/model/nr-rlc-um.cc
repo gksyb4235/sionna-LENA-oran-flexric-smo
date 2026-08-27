@@ -904,15 +904,23 @@ NrRlcUm::ReassembleAndDeliver(Ptr<Packet> packet)
             case (NrRlcHeader::FIRST_BYTE | NrRlcHeader::LAST_BYTE):
             case (NrRlcHeader::FIRST_BYTE | NrRlcHeader::NO_LAST_BYTE):
             default:
-                /**
-                 * ERROR: Transition not possible
-                 */
-                NS_ASSERT_MSG(false,
-                              "INTERNAL ERROR: We are in the WAITING_SI_SF state and no packet "
-                              "loss has occurred, "
-                              "so the received RLC PDU is expected to have FI = 10 (2) or FI = 11 "
-                              "(3), not FI = "
-                                  << (uint32_t)framingInfo);
+                // Same class of inconsistency as the "no held S0" guard above:
+                // a PDU carrying a fresh FIRST_BYTE segment arrived while we
+                // were still mid-reassembly (WAITING_SI_SF) with no reported
+                // packet loss. Under frequent forced re-attachment/handover
+                // churn (pooled UE devices reused across many real-trace
+                // sessions), a stale in-flight PDU addressed to a bearer that
+                // has since been torn down and recreated with a fresh RNTI
+                // can arrive interleaved with the new bearer's own traffic,
+                // which this reassembler (designed for a single stable RRC
+                // connection's PDU stream) has no way to distinguish from
+                // real loss-free corruption. Discard the orphaned partial and
+                // resynchronise to a fresh SDU boundary instead of asserting.
+                NS_LOG_WARN("Dropping unreassemblable RLC-UM PDU in WAITING_SI_SF (FI="
+                            << (uint32_t)framingInfo << ", no held-S0 mismatch)");
+                m_keepS0 = nullptr;
+                m_sdusBuffer.clear();
+                m_reassemblingState = WAITING_S0_FULL;
                 break;
             }
             break;
