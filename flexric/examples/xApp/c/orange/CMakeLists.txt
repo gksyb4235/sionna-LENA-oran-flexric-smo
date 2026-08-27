@@ -1,0 +1,28 @@
+include_directories(src/xApp)
+
+add_executable(xapp_es_with_cell_util
+    xapp_es_with_cell_util.c
+    ../../../../src/util/alg_ds/alg/defer.c
+)
+
+# Link necessary libraries
+target_link_libraries(xapp_es_with_cell_util
+    PUBLIC
+    e42_xapp
+    pthread
+    sctp
+    dl
+)
+
+add_executable(xapp_energy_off_demo
+    xapp_energy_off_demo.c
+    ../../../../src/util/alg_ds/alg/defer.c
+)
+
+target_link_libraries(xapp_energy_off_demo
+    PUBLIC
+    e42_xapp
+    pthread
+    sctp
+    dl
+)
