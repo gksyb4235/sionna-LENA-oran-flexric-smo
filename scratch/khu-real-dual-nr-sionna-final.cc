@@ -2854,12 +2854,44 @@ main(int argc, char* argv[])
                                            ? (kPacketSizeBytes * 8.0) / (intervalMs * 1000.0)
                                            : 0.0;
 
-        Simulator::Schedule(
-            Seconds(session.start),
+        auto startSessionAttempt = std::make_shared<std::function<void()>>();
+        *startSessionAttempt =
             [ueDevice, mobility, &guiClient, guiName, traceId, imsi, slot, nrHelper, gnbNetDev,
              position = session.startPosition, sessionUid = session.uid,
              sessionStart = session.start, offeredLoadMbps, intervalMs, &slotEverAttached,
-             slotSettlingHoWindowSec]() {
+             slotSettlingHoWindowSec, startSessionAttempt]() {
+                // Reusing a slot teleports its still-connected UE, relying on the
+                // A3 algorithm to trigger a normal handover afterwards. If that
+                // UE already has a *different* handover in flight at its current
+                // serving cell (HANDOVER_JOINING/PATH_SWITCH), the teleport would
+                // start a second, overlapping one for the same RNTI -- observed
+                // to corrupt bearer/QoS-flow state (duplicate QFI/DRBID, stale
+                // packet redelivery). Defer the reuse until that settles instead
+                // of firing into it.
+                if (slotEverAttached[slot])
+                {
+                    auto ueDevPtr = DynamicCast<NrUeNetDevice>(ueDevice);
+                    uint16_t curCellId = ueDevPtr->GetRrc()->GetCellId();
+                    uint16_t curRnti = ueDevPtr->GetRrc()->GetRnti();
+                    for (uint32_t g = 0; g < gnbNetDev.GetN(); ++g)
+                    {
+                        Ptr<NrGnbNetDevice> gnbDev = DynamicCast<NrGnbNetDevice>(gnbNetDev.Get(g));
+                        if (gnbDev->GetCellId() != curCellId)
+                        {
+                            continue;
+                        }
+                        Ptr<NrGnbRrc> servingRrc = gnbDev->GetRrc();
+                        if (servingRrc->HasUeManager(curRnti) &&
+                            servingRrc->GetUeManager(curRnti)->GetState() !=
+                                NrUeManager::CONNECTED_NORMALLY)
+                        {
+                            Simulator::Schedule(MilliSeconds(50), *startSessionAttempt);
+                            return;
+                        }
+                        break;
+                    }
+                }
+
                 mobility->SetPosition(position);
                 SendUePositionToGui(guiClient, guiName, position);
 
@@ -2960,7 +2992,8 @@ main(int argc, char* argv[])
                                               << ", settling HO KPI suppressed for "
                                               << slotSettlingHoWindowSec << "s");
                 }
-            });
+            };
+        Simulator::Schedule(Seconds(session.start), *startSessionAttempt);
 
         // Interior position samples for this session (the arrival sample at
         // session.start is already handled above).

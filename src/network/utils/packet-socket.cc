@@ -398,6 +398,20 @@ PacketSocket::ForwardUp(Ptr<NetDevice> device,
         Ptr<Packet> copy = packet->Copy();
         DeviceNameTag dnt;
         dnt.SetDeviceName(NetDevice::GetTypeId().GetName());
+        // ns-3 packet tags are metadata that rides along with a Packet
+        // across an entire simulated path unless something explicitly
+        // strips them. If this packet already passed through ForwardUp
+        // once (e.g. it is being routed a second hop -- uplink from one UE
+        // delivered back down and out again as if newly received), it can
+        // still carry the PacketSocketTag/DeviceNameTag this function
+        // itself attaches below. Drop any stale copies first -- same
+        // defensive pattern already used for the priority tag further
+        // down. Without this, AddPacketTag() aborts the whole simulation
+        // instead of simply refreshing a stale tag.
+        PacketSocketTag stalePst;
+        copy->RemovePacketTag(stalePst);
+        DeviceNameTag staleDnt;
+        copy->RemovePacketTag(staleDnt);
         PacketSocketTag pst;
         pst.SetPacketType(packetType);
         pst.SetDestAddress(to);

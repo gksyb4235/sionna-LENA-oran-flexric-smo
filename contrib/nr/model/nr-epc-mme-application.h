@@ -193,7 +193,6 @@ class NR_EXPORT NrEpcMmeApplication : public Application
         uint64_t mmeUeS1Id;                     ///< mmeUeS1Id
         uint16_t gnbUeS1Id;                     ///< gnbUeS1Id
         uint16_t cellId;                        ///< cell ID
-        uint16_t flowCounter;                   ///< flow counter
         std::list<FlowInfo> flowsToBeActivated; ///< list of flows to be activated
     };
 

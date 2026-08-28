@@ -441,6 +441,13 @@ NrUeManager::SetupDataRadioBearer(NrQosFlow flow,
 
     Ptr<NrDataRadioBearerInfo> drbInfo = CreateObject<NrDataRadioBearerInfo>();
     uint8_t drbid = AddDataRadioBearerInfo(drbInfo, qfi);
+    if (drbid == 0)
+    {
+        // Duplicate/stale request for a bearer this UE manager already has
+        // active; AddDataRadioBearerInfo already logged why. Nothing further
+        // to set up.
+        return;
+    }
     uint8_t lcid = nr::Drbid2Lcid(drbid);
     drbInfo->m_qosFlow = flow;
     drbInfo->m_qosFlowIdentity = qfi;
@@ -998,7 +1005,12 @@ NrUeManager::SendData(uint8_t qfi, Ptr<Packet> p)
         params.sourceCellId = m_rrc->ComponentCarrierToCellId(m_componentCarrierId);
         params.targetCellId = m_targetCellId;
         params.gtpTeid = GetDataRadioBearerInfo(drbid)->m_gtpTeid;
-        params.ueData = p;
+        // Hand X2-U a private copy, not the caller's packet: p can still be
+        // in use elsewhere (e.g. re-delivered on a subsequent handover for
+        // the same UE), and NrEpcX2::DoSendUeData routes it through a
+        // PacketSocket, which tags it. Sharing the tagged object across two
+        // sends aborts on "cannot add the same kind of tag twice".
+        params.ueData = p->Copy();
         m_rrc->m_x2SapProvider->SendUeData(params);
     }
     break;
@@ -1654,9 +1666,23 @@ NrUeManager::AddDataRadioBearerInfo(Ptr<NrDataRadioBearerInfo> drbInfo, uint8_t 
                             drbid >= MAX_DRB_ID,
                         "QFI " << (uint32_t)qfi << " maps to an unusable DRBID "
                                << (uint32_t)drbid << " for RNTI " << m_rnti);
-        NS_ABORT_MSG_IF(m_drbMap.find(drbid) != m_drbMap.end(),
-                        "DRBID " << (uint32_t)drbid << " (QFI " << (uint32_t)qfi
-                                 << ") is already in use for RNTI " << m_rnti);
+        if (m_drbMap.find(drbid) != m_drbMap.end())
+        {
+            // Not a real protocol conflict: this UE manager already has an
+            // active bearer for this exact QFI. In practice this happens
+            // when a SetupDataRadioBearer request for an already-torn-down
+            // UE (e.g. an in-flight, delayed X2/S1 message) is delivered
+            // after this RNTI has already been recycled to a brand-new UE
+            // that happens to have set up the same low-numbered QFI (1 is
+            // the default bearer, so this is overwhelmingly the common
+            // case). Treat it as the redundant/stale duplicate it is instead
+            // of aborting the whole simulation over a signaling-layer
+            // artifact of RNTI reuse.
+            NS_LOG_WARN("Ignoring duplicate SetupDataRadioBearer for RNTI "
+                        << m_rnti << ": DRBID " << (uint32_t)drbid << " (QFI " << (uint32_t)qfi
+                        << ") is already active (likely a stale message for a recycled RNTI)");
+            return 0;
+        }
         m_drbMap.insert(std::pair<uint8_t, Ptr<NrDataRadioBearerInfo>>(drbid, drbInfo));
         drbInfo->m_drbIdentity = drbid;
         m_lastAllocatedDrbid = drbid;

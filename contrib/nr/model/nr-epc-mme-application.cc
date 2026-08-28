@@ -11,6 +11,7 @@
 #include "ns3/log.h"
 
 #include <map>
+#include <set>
 
 namespace ns3
 {
@@ -84,7 +85,6 @@ NrEpcMmeApplication::AddUe(uint64_t imsi)
     Ptr<NrUeInfo> ueInfo = Create<NrUeInfo>();
     ueInfo->imsi = imsi;
     ueInfo->mmeUeS1Id = imsi;
-    ueInfo->flowCounter = 0;
     m_ueInfoMap[imsi] = ueInfo;
 }
 
@@ -94,17 +94,29 @@ NrEpcMmeApplication::AddFlow(uint64_t imsi, Ptr<NrQosRule> rule, NrQosFlow flow)
     NS_LOG_FUNCTION(this << imsi);
     auto it = m_ueInfoMap.find(imsi);
     NS_ASSERT_MSG(it != m_ueInfoMap.end(), "could not find any UE with IMSI " << imsi);
-    NS_ASSERT_MSG(it->second->flowCounter < 64,
-                  "too many flows already! " << it->second->flowCounter);
-    FlowInfo flowInfo;
-    // Assign QFI: QFI 1 for default flow, then QFI 3+ for dedicated flows (QFI 2 is reserved for
-    // sidelink)
-    uint8_t qfi = ++(it->second->flowCounter);
-    if (qfi == 2)
+
+    // Assign QFI 1 to the default flow, then 3, 4, 5, ... to dedicated flows
+    // (QFI 2 is reserved for sidelink). The lowest unused id is picked by
+    // scanning the UE's currently-active flows rather than by an
+    // increment/decrement counter: a shared counter that gets decremented on
+    // every RemoveFlow (regardless of *which* flow was removed) can reissue a
+    // QFI that a different, still-active flow already holds as soon as flows
+    // for this UE are set up and torn down out of order -- which the gNB RRC
+    // then rejects as "DRBID already in use" once it derives the DRBID from
+    // that (duplicate) QFI.
+    std::set<uint8_t> activeQfis;
+    for (const auto& existingFlow : it->second->flowsToBeActivated)
     {
-        NS_LOG_INFO("MME IMSI " << imsi << " QFI 2 assignment skipped (reserved for sidelink)");
-        qfi = ++(it->second->flowCounter);
+        activeQfis.insert(existingFlow.qfi);
     }
+    uint8_t qfi = 1;
+    while (qfi == 2 || activeQfis.count(qfi) > 0)
+    {
+        NS_ASSERT_MSG(qfi < 63, "too many active flows already for IMSI " << imsi);
+        ++qfi;
+    }
+
+    FlowInfo flowInfo;
     flowInfo.qfi = qfi;
     flowInfo.rule = rule;
     flowInfo.flow = flow;
@@ -251,7 +263,6 @@ NrEpcMmeApplication::RemoveFlow(Ptr<NrUeInfo> ueInfo, uint8_t qfi)
         if (bit->qfi == qfi)
         {
             ueInfo->flowsToBeActivated.erase(bit);
-            ueInfo->flowCounter = ueInfo->flowCounter - 1;
             break;
         }
         ++bit;
