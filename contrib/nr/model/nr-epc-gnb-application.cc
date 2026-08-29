@@ -358,7 +358,16 @@ NrEpcGnbApplication::SendToNrSocket(Ptr<Packet> packet, uint16_t rnti, uint8_t q
         NS_ABORT_MSG("NrEpcGnbApplication::SendToNrSocket - Unknown IP type...");
     }
 
-    NS_ASSERT(sentBytes > 0);
+    // A negative/zero return means the local NR-side PacketSocket declined
+    // the packet -- in particular NrGnbRrc::SendData() returns false and the
+    // packet is dropped when the target UE's RRC context is already gone by
+    // the time this downlink packet made it back down here (in-flight during
+    // a detach/handover). That is an ordinary, non-fatal outcome, not a
+    // reason to abort the whole simulation.
+    if (sentBytes <= 0)
+    {
+        NS_LOG_WARN("Failed to forward packet from gNB's S1-U to NR stack (UE likely gone)");
+    }
 }
 
 void

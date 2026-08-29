@@ -1313,8 +1313,20 @@ NrSpectrumPhy::StartRxData(const Ptr<NrSpectrumSignalParametersDataFrame>& param
             // should occur at the same time and have the same
             // duration, otherwise the interference calculation
             // won't be correct
-            NS_ASSERT((m_firstRxStart == Simulator::Now()) &&
-                      (m_firstRxDuration == params->duration));
+            if (m_firstRxStart != Simulator::Now() || m_firstRxDuration != params->duration)
+            {
+                // Same class of pooled-UE handover-churn timing collision as
+                // StartRxData's other branches above: this signal doesn't
+                // line up with the reception already in progress, so it
+                // can't be folded into the same interference calculation.
+                // Log and drop instead of crashing.
+                NS_LOG_WARN("Dropping misaligned simultaneous DATA RX at cell "
+                            << GetCellId() << " -- firstRxStart=" << m_firstRxStart.GetSeconds()
+                            << "s now=" << Simulator::Now().GetSeconds()
+                            << "s firstRxDuration=" << m_firstRxDuration.GetSeconds()
+                            << "s thisDuration=" << params->duration.GetSeconds() << "s");
+                return;
+            }
         }
 
         ChangeState(RX_DATA, params->duration);

@@ -2800,6 +2800,17 @@ NrGnbRrc::SendData(Ptr<Packet> packet)
     bool found = packet->RemovePacketTag(tag);
     NS_ASSERT_MSG(found, "no NrQosFlowTag found in packet to be sent");
     Ptr<NrUeManager> ueManager = GetUeManager(tag.GetRnti());
+    if (!ueManager)
+    {
+        // The UE this downlink packet was queued for (e.g. via S1-U) is no
+        // longer known to this gNB -- its RRC context was already torn down
+        // (detach/handover) by the time the packet made it back down here.
+        // GetUeManager() already logged why; just drop the packet instead of
+        // aborting the simulation over an ordinary in-flight-during-teardown
+        // race.
+        NS_LOG_WARN("Dropping downlink packet for unknown RNTI " << tag.GetRnti());
+        return false;
+    }
 
     NS_LOG_INFO("Sending a packet of " << packet->GetSize() << " bytes to IMSI "
                                        << ueManager->GetImsi() << ", RNTI " << ueManager->GetRnti()
