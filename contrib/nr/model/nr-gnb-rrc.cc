@@ -1119,7 +1119,16 @@ void
 NrUeManager::RecvUeContextRelease(NrEpcX2SapUser::UeContextReleaseParams params)
 {
     NS_LOG_FUNCTION(this);
-    NS_ASSERT_MSG(m_state == HANDOVER_LEAVING, "method unexpected in state " << ToString(m_state));
+    if (m_state != HANDOVER_LEAVING)
+    {
+        // This X2 UE CONTEXT RELEASE arrived for an RNTI that has since been
+        // recycled to a brand-new UE (now e.g. in ATTACH_REQUEST) -- a stale
+        // message for a handover this UE manager already finished handling,
+        // not a real protocol violation. Ignore it instead of aborting.
+        NS_LOG_WARN("Ignoring stale UE CONTEXT RELEASE for RNTI "
+                    << m_rnti << " in state " << ToString(m_state));
+        return;
+    }
     m_handoverLeavingTimeout.Cancel();
 }
 

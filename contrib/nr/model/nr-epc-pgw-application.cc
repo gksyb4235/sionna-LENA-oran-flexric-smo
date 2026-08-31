@@ -475,6 +475,18 @@ NrEpcPgwApplication::SendToTunDevice(Ptr<Packet> packet, uint32_t teid)
     NS_LOG_FUNCTION(this << packet << teid);
     NS_LOG_LOGIC("packet size: " << packet->GetSize() << " bytes");
 
+    // Too small to hold even a minimal IPv4 header: forwarding it into the
+    // tun device would make Ipv4L3Protocol::Receive abort trying to remove a
+    // header that isn't actually there. Drop it instead of crashing the
+    // whole simulation over what is, at worst, a malformed/truncated packet.
+    if (packet->GetSize() < 20)
+    {
+        NS_LOG_WARN("Dropping undersized packet (" << packet->GetSize()
+                                                    << " bytes) for TEID " << teid
+                                                    << " -- too small for an IP header");
+        return;
+    }
+
     uint8_t ipType;
     packet->CopyData(&ipType, 1);
     ipType = (ipType >> 4) & 0x0f;
