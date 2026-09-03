@@ -11,6 +11,7 @@
 
 #include "ns3/abort.h"
 #include "ns3/inet-socket-address.h"
+#include "ns3/ipv4-header.h"
 #include "ns3/ipv4-l3-protocol.h"
 #include "ns3/ipv4.h"
 #include "ns3/ipv6-header.h"
@@ -18,6 +19,10 @@
 #include "ns3/ipv6.h"
 #include "ns3/log.h"
 #include "ns3/mac48-address.h"
+#include "ns3/packet-metadata.h"
+#include "ns3/simulator.h"
+
+#include <vector>
 
 namespace ns3
 {
@@ -286,6 +291,10 @@ NrEpcPgwApplication::RecvFromS5uSocket(Ptr<Socket> socket)
     NrGtpuHeader gtpu;
     packet->RemoveHeader(gtpu);
     uint32_t teid = gtpu.GetTeid();
+    NS_LOG_UNCOND("[S5U diag] t=" << Simulator::Now().GetSeconds() << " teid=" << teid
+                                  << " version=" << (uint32_t)gtpu.GetVersion()
+                                  << " msgType=" << (uint32_t)gtpu.GetMessageType()
+                                  << " remainingSize=" << packet->GetSize());
 
     SendToTunDevice(packet, teid);
 }
@@ -487,22 +496,65 @@ NrEpcPgwApplication::SendToTunDevice(Ptr<Packet> packet, uint32_t teid)
         return;
     }
 
+    // Ipv4L3Protocol::Receive (reached via m_tunDevice->Receive() below) uses
+    // Packet::RemoveHeader(), which requires the packet's own metadata to
+    // already record a matching Ipv4Header/Ipv6Header entry at the front --
+    // it does not parse header bytes on demand. If this packet's first
+    // metadata item isn't actually that header type (e.g. its own header
+    // history was lost/corrupted somewhere upstream), forwarding it would
+    // abort the whole simulation. Peek the metadata (this never aborts,
+    // unlike RemoveHeader) and drop instead in that case.
     uint8_t ipType;
     packet->CopyData(&ipType, 1);
     ipType = (ipType >> 4) & 0x0f;
 
     uint16_t protocol = 0;
+    TypeId expectedHeaderTid;
     if (ipType == 0x04)
     {
         protocol = 0x0800;
+        expectedHeaderTid = Ipv4Header::GetTypeId();
     }
     else if (ipType == 0x06)
     {
         protocol = 0x86DD;
+        expectedHeaderTid = Ipv6Header::GetTypeId();
     }
     else
     {
         NS_ABORT_MSG("Unknown IP type");
+    }
+
+    {
+        PacketMetadata::ItemIterator it = packet->BeginItem();
+        if (!it.HasNext())
+        {
+            NS_LOG_WARN("Dropping packet for TEID " << teid << " -- no metadata items");
+            return;
+        }
+        PacketMetadata::Item front = it.Next();
+        if (front.type != PacketMetadata::Item::HEADER || front.tid != expectedHeaderTid)
+        {
+            NS_LOG_WARN("Dropping packet for TEID "
+                        << teid << " -- expected " << expectedHeaderTid.GetName()
+                        << " at front, found "
+                        << (front.type == PacketMetadata::Item::HEADER
+                                ? front.tid.GetName()
+                                : (front.type == PacketMetadata::Item::TRAILER ? "<trailer>"
+                                                                               : "<payload>")));
+            return;
+        }
+        if (front.isFragment)
+        {
+            // Right header type, but only a fragment of it survived at the
+            // front (e.g. currentSize/trimmed fields don't cover the whole
+            // header) -- RemoveHeader() would abort with "incomplete
+            // header". Drop rather than crash.
+            NS_LOG_WARN("Dropping packet for TEID "
+                        << teid << " -- " << expectedHeaderTid.GetName()
+                        << " at front is only a fragment (size=" << front.currentSize << ")");
+            return;
+        }
     }
 
     m_tunDevice->Receive(packet,

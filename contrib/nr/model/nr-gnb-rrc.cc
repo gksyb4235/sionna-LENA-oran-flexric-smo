@@ -3059,6 +3059,14 @@ NrGnbRrc::DoInitialContextSetupRequest(NrEpcGnbS1SapUser::InitialContextSetupReq
 {
     NS_LOG_FUNCTION(this);
     Ptr<NrUeManager> ueManager = GetUeManager(msg.rnti);
+    if (!ueManager)
+    {
+        // Same class of stale-context race as SendData/DoDataRadioBearer-
+        // SetupRequest: the RNTI this initial context setup was queued for
+        // no longer has a UE manager by the time it arrives here.
+        NS_LOG_WARN("Dropping InitialContextSetupRequest for unknown RNTI " << msg.rnti);
+        return;
+    }
     ueManager->InitialContextSetupRequest();
 }
 
@@ -3116,6 +3124,14 @@ NrGnbRrc::DoDataRadioBearerSetupRequest(
 {
     NS_LOG_FUNCTION(this);
     Ptr<NrUeManager> ueManager = GetUeManager(request.rnti);
+    if (!ueManager)
+    {
+        // Same as NrGnbRrc::SendData: the UE this bearer setup request was
+        // queued for is no longer known to this gNB by the time the request
+        // made it back down here. GetUeManager() already logged why.
+        NS_LOG_WARN("Dropping DataRadioBearerSetupRequest for unknown RNTI " << request.rnti);
+        return;
+    }
     ueManager->SetupDataRadioBearer(request.flow,
                                     request.qfi,
                                     request.gtpTeid,
@@ -3128,6 +3144,11 @@ NrGnbRrc::DoPathSwitchRequestAcknowledge(
 {
     NS_LOG_FUNCTION(this);
     Ptr<NrUeManager> ueManager = GetUeManager(params.rnti);
+    if (!ueManager)
+    {
+        NS_LOG_WARN("Dropping PathSwitchRequestAcknowledge for unknown RNTI " << params.rnti);
+        return;
+    }
     ueManager->SendUeContextRelease();
 }
 
@@ -3182,6 +3203,17 @@ NrGnbRrc::DoRecvHandoverRequest(NrEpcX2SapUser::HandoverRequestParams req)
         NrEpcX2Sap::HandoverPreparationFailureParams msg = ueManager->BuildHoPrepFailMsg();
         m_x2SapProvider->SendHandoverPreparationFailure(msg);
         RemoveUe(rnti); // remove the UE from the target eNB
+        return;
+    }
+
+    if (!HasUeManager(rnti))
+    {
+        // Same class of stale-context race as SendData/DoDataRadioBearer-
+        // SetupRequest: this handover-joining UE was already torn down (by
+        // whatever path) between being created above and reaching here.
+        // Nothing left to send an ACK or set up bearers for.
+        NS_LOG_WARN("Aborting HANDOVER REQUEST processing: RNTI " << rnti
+                                                                   << " no longer exists");
         return;
     }
 
@@ -3358,7 +3390,16 @@ NrGnbRrc::DoRecvUeData(NrEpcX2SapUser::UeDataParams params)
     auto teidInfoIt = m_x2uTeidInfoMap.find(params.gtpTeid);
     if (teidInfoIt != m_x2uTeidInfoMap.end())
     {
-        GetUeManager(teidInfoIt->second.rnti)->SendData(teidInfoIt->second.drbid, params.ueData);
+        Ptr<NrUeManager> ueManager = GetUeManager(teidInfoIt->second.rnti);
+        if (!ueManager)
+        {
+            NS_LOG_WARN("Dropping X2-U forwarded data for unknown RNTI "
+                        << teidInfoIt->second.rnti);
+        }
+        else
+        {
+            ueManager->SendData(teidInfoIt->second.drbid, params.ueData);
+        }
     }
     else
     {
