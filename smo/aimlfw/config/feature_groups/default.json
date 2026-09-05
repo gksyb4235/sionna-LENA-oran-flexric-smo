@@ -1,0 +1,8 @@
+{
+  "name": "default",
+  "features": ["cell_goodput_mbps", "avg_ue_goodput_mbps", "ue_goodput_p5_mbps", "sinr_p50_db", "prb_utilization_pct", "delay_p95_ms", "ho_failure_count", "pingpong_count", "rlf_count", "interval_energy_j"],
+  "aggregations": {"cell_goodput_mbps": "mean", "avg_ue_goodput_mbps": "mean", "ue_goodput_p5_mbps": "mean", "sinr_p50_db": "mean", "prb_utilization_pct": "mean", "delay_p95_ms": "mean", "ho_failure_count": "sum", "pingpong_count": "sum", "rlf_count": "sum", "interval_energy_j": "sum"},
+  "interval_seconds": 180,
+  "target_cells": ["gNB_5G", "gNB_4G_1", "gNB_4G_2"],
+  "target_kpis": ["cell_goodput_mbps", "avg_ue_goodput_mbps", "ue_goodput_p5_mbps", "sinr_p50_db", "prb_utilization_pct", "delay_p95_ms", "ho_failure_count", "pingpong_count", "rlf_count", "interval_energy_j"]
+}

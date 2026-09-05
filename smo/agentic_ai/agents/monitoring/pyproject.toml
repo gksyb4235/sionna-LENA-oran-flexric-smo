@@ -1,0 +1,23 @@
+[project]
+name = "monitoring-agent"
+version = "0.1.0"
+description = "Expected-outcome monitor using the existing Probe and Planning agents"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.124.0",
+    "uvicorn>=0.38.0",
+]
+
+[build-system]
+requires = ["setuptools>=82.0.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["agent", "schemas", "server"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

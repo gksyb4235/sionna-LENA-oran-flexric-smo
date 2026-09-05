@@ -1,0 +1,105 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f6f8;
+  color: #17202a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: grid; grid-template-columns: 320px minmax(0, 1fr); }
+.sidebar { background: #101820; color: #f9fbfc; padding: 20px 16px; overflow-y: auto; }
+.brand { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.subtle { color: #91a0ad; font-size: 13px; margin-bottom: 16px; }
+.runs { display: flex; flex-direction: column; gap: 8px; }
+.run-item { width: 100%; text-align: left; border: 1px solid #273442; background: #172431; color: #eef3f7; padding: 12px; border-radius: 6px; cursor: pointer; }
+.run-item.active { border-color: #35a7ff; background: #20364a; }
+.run-item .status { display: inline-block; font-size: 12px; padding: 2px 7px; border-radius: 999px; background: #2f3b46; margin-bottom: 7px; }
+.status.completed { background: #0f766e; }
+.status.pending_approval { background: #a16207; }
+.status.blocked, .status.rejected, .status.failed { background: #b42318; }
+.status.running { background: #2563eb; }
+.run-item .intent { font-size: 13px; line-height: 1.35; color: #f8fbfd; }
+.run-item .meta { font-size: 12px; color: #9fb0bf; margin-top: 8px; }
+.workspace { min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #ffffff; border: 1px solid #e1e6eb; border-radius: 8px; padding: 16px 18px; }
+.run-title { font-size: 20px; font-weight: 700; }
+.run-meta { margin-top: 4px; color: #607080; font-size: 13px; }
+.icon-button, .approval button { border: 1px solid #cbd5df; background: #ffffff; color: #17202a; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+.icon-button:hover, .approval button:hover { border-color: #8aa2b7; }
+
+.intent-panel { background: #ffffff; border: 1px solid #e1e6eb; border-radius: 8px; padding: 14px; }
+.intent-form { display: grid; gap: 8px; }
+.intent-form label { font-weight: 700; }
+.intent-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: stretch; }
+.intent-row textarea { width: 100%; resize: vertical; min-height: 52px; border: 1px solid #cbd5df; border-radius: 6px; padding: 10px 12px; font: inherit; line-height: 1.35; }
+.intent-row textarea:focus { outline: 2px solid #b8dcff; border-color: #35a7ff; }
+.intent-row button { border: 1px solid #0f766e; background: #0f766e; color: #ffffff; border-radius: 6px; padding: 0 18px; font-weight: 700; cursor: pointer; }
+.intent-row button:disabled { opacity: 0.62; cursor: wait; }
+.intent-status { color: #607080; font-size: 12px; min-height: 18px; }
+.intent-status.running, .intent-status.pending { color: #a16207; }
+.intent-status.success { color: #0f766e; }
+.intent-status.error { color: #b42318; }
+.approval { background: #fff8e1; border: 1px solid #f0c36a; border-radius: 8px; padding: 14px; display: grid; gap: 10px; }
+.approval.hidden { display: none; }
+.approval-title { font-weight: 700; }
+.approval-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.approval .approve { background: #0f766e; color: white; border-color: #0f766e; }
+.approval .reject { background: #b42318; color: white; border-color: #b42318; }
+.graph-panel, .timeline-panel, .detail-panel { background: #ffffff; border: 1px solid #e1e6eb; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+.graph-panel { min-height: 390px; }
+.panel-title { padding: 12px 14px; border-bottom: 1px solid #e1e6eb; font-weight: 700; }
+.graph-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.graph-title-main { display: flex; align-items: baseline; gap: 12px; min-width: 260px; }
+.graph-hint { color: #607080; font-size: 12px; font-weight: 500; }
+.graph-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.graph-toolbar button { border: 1px solid #cbd5df; background: #ffffff; color: #17202a; border-radius: 6px; min-width: 34px; height: 28px; padding: 0 9px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.graph-toolbar button:hover { border-color: #35a7ff; color: #0f5f9f; }
+.graph-toolbar button#graph-reset { min-width: 50px; }
+.graph-shell { position: relative; min-height: 340px; overflow: auto; background-color: #fbfcfe; background-image: radial-gradient(#d6dee8 1px, transparent 1px); background-size: 18px 18px; }
+.graph-svg { display: block; width: 100%; min-width: 1280px; min-height: 340px; touch-action: none; user-select: none; cursor: grab; }
+.graph-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #607080; font-size: 14px; }
+.graph-empty.hidden { display: none; }
+.graph-edge { fill: none; stroke: #8aa2b7; stroke-width: 2; }
+.graph-edge.pending_approval { stroke: #a16207; }
+.graph-edge.completed { stroke: #0f766e; }
+.graph-edge.blocked, .graph-edge.rejected, .graph-edge.failed { stroke: #b42318; }
+.graph-edge-label-bg { fill: #ffffff; stroke: #dbe4ec; stroke-width: 1; opacity: 0.96; }
+.graph-edge-label { fill: #405263; font-size: 11px; font-weight: 700; }
+.graph-node { cursor: grab; }
+.graph-svg.dragging, .graph-svg.panning { cursor: grabbing; }
+.graph-svg.dragging .graph-node, .graph-svg.panning .graph-node { cursor: grabbing; }
+.graph-node rect { fill: #ffffff; stroke: #cbd5df; stroke-width: 1.5; filter: drop-shadow(0 4px 10px rgba(16, 24, 32, 0.08)); }
+.graph-node:hover rect { stroke: #35a7ff; }
+.graph-node.selected rect { stroke: #2563eb; stroke-width: 2.5; }
+.graph-node.user rect { fill: #eef6ff; stroke: #88bdf2; }
+.graph-node.agent rect { fill: #f7fbff; stroke: #7aa7d8; }
+.graph-node.planning rect { fill: #f4f7ff; stroke: #8b9cf6; }
+.graph-node.tool rect { fill: #f6fbf6; stroke: #83bd88; }
+.graph-node.subtask rect { fill: #fffaf0; stroke: #e2b85c; }
+.graph-node.completion rect { fill: #f8fafc; stroke: #9aa9b7; }
+.graph-node.completed rect { stroke: #0f766e; }
+.graph-node.pending_approval rect { stroke: #a16207; }
+.graph-node.blocked rect, .graph-node.rejected rect, .graph-node.failed rect { stroke: #b42318; }
+.graph-node-title { fill: #17202a; font-size: 13px; font-weight: 700; }
+.graph-node-subtitle { fill: #607080; font-size: 11px; }
+.graph-node-badge { fill: #edf2f7; stroke: #d7e0e8; }
+.graph-node-badge-text { fill: #435466; font-size: 10px; font-weight: 700; }
+.content-grid { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 0.9fr); gap: 14px; }
+.timeline-panel, .detail-panel { min-height: 360px; }
+.timeline { padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.event { border: 1px solid #dce3ea; border-left: 4px solid #6b7280; border-radius: 6px; background: #fbfcfd; padding: 10px; cursor: pointer; }
+.event:hover { background: #f2f7fb; }
+.event.completed { border-left-color: #0f766e; }
+.event.pending_approval { border-left-color: #a16207; }
+.event.blocked, .event.failed, .event.rejected { border-left-color: #b42318; }
+.event-title { font-weight: 700; font-size: 14px; }
+.event-meta { margin-top: 4px; font-size: 12px; color: #607080; }
+.detail { margin: 0; padding: 14px; overflow: auto; flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.code { margin: 0; background: #17202a; color: #e6edf3; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+@media (max-width: 980px) {
+  .intent-row { grid-template-columns: 1fr; }
+  .intent-row button { min-height: 40px; }
+  body { grid-template-columns: 1fr; }
+  .sidebar { max-height: 280px; }
+  .content-grid { grid-template-columns: 1fr; }
+  .graph-svg { min-width: 1100px; }
+}

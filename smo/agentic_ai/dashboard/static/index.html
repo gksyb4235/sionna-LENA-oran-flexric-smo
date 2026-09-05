@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent Ops Dashboard</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">Agent Ops</div>
+    <div class="subtle">Recent planning runs</div>
+    <div id="runs" class="runs"></div>
+  </aside>
+  <main class="workspace">
+    <header class="topbar">
+      <div>
+        <div id="run-title" class="run-title">Select a run</div>
+        <div id="run-meta" class="run-meta">Waiting for agent events</div>
+      </div>
+      <button id="refresh" class="icon-button" title="Refresh">Refresh</button>
+    </header>
+    <section class="intent-panel">
+      <form id="intent-form" class="intent-form">
+        <label for="intent-input">Intent</label>
+        <div class="intent-row">
+          <textarea id="intent-input" rows="2" placeholder="Scale SMF deployment to 2 replicas and monitor whether the SMF replicas are healthy"></textarea>
+          <button id="intent-submit" type="submit">Run</button>
+        </div>
+        <div id="intent-status" class="intent-status">Enter an intent to start decomposition -> planning.</div>
+      </form>
+    </section>
+    <section id="approval" class="approval hidden"></section>
+    <section class="graph-panel">
+      <div class="panel-title graph-title">
+        <div class="graph-title-main">
+          <span>Agent Graph</span>
+          <span id="graph-hint" class="graph-hint">LangGraph-style runtime view</span>
+        </div>
+        <div class="graph-toolbar" aria-label="Graph viewport controls">
+          <button id="graph-zoom-out" type="button" title="Zoom out">-</button>
+          <button id="graph-zoom-in" type="button" title="Zoom in">+</button>
+          <button id="graph-fit" type="button" title="Fit graph">Fit</button>
+          <button id="graph-reset" type="button" title="Reset graph layout">Reset</button>
+          <button id="graph-pan-left" type="button" title="Pan left">Left</button>
+          <button id="graph-pan-up" type="button" title="Pan up">Up</button>
+          <button id="graph-pan-down" type="button" title="Pan down">Down</button>
+          <button id="graph-pan-right" type="button" title="Pan right">Right</button>
+        </div>
+      </div>
+      <div class="graph-shell">
+        <svg id="graph-svg" class="graph-svg" role="img" aria-label="Agent execution graph"></svg>
+        <div id="graph-empty" class="graph-empty hidden">No graph data yet.</div>
+      </div>
+    </section>
+    <section class="content-grid">
+      <div class="timeline-panel">
+        <div class="panel-title">Timeline</div>
+        <div id="timeline" class="timeline"></div>
+      </div>
+      <div class="detail-panel">
+        <div class="panel-title">Event Detail</div>
+        <pre id="detail" class="detail">No event selected.</pre>
+      </div>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
