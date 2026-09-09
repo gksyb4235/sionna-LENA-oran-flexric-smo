@@ -66,3 +66,23 @@ scenarios/khu-real/sionna_rt_cache_lzf.h5
 # Timestamped simulation results are runtime artifacts; keep only their schema docs.
 scenarios/results/*/
 !scenarios/results/KPI_SCHEMA.md
+
+# ASan debug build (regenerate with ./ns3 configure --enable-asan if needed)
+build-asan/
+
+# Test/lint caches
+.hypothesis/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime state/telemetry logs (not source)
+.state/
+
+# MongoDB runtime binaries and live DB data for smo/agentic_ai (not source,
+# not portable, and exceeds GitHub's per-file size limit)
+smo/agentic_ai/mongodb/current/
+smo/agentic_ai/mongodb/mongodb-linux-*/
+smo/agentic_ai/mongodb/downloads/
+smo/agentic_ai/mongodb/standalone-data/
+smo/agentic_ai/mongodb/logs/
+smo/agentic_ai/mongodb/run/

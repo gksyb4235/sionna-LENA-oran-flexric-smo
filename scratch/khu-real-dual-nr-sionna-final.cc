@@ -953,7 +953,7 @@ static std::map<uint64_t, uint64_t> g_pendingHoSessionGeneration;
 static std::map<uint64_t, bool> g_pendingHoAccountingSuppressed;
 static double g_handoverTtTMs = 0.0;
 static double g_handoverHysteresisDb = 0.0;
-static double g_pingPongWindowSec = 3.0;
+static double g_pingPongWindowSec = 1.0;
 
 static size_t
 DelayHistogramBin(double delayMs)
@@ -2160,7 +2160,7 @@ main(int argc, char* argv[])
 
     double handoverTtTMs = 256.0;
     double handoverHysteresisDb = 3.0;
-    double pingPongWindowSec = 3.0;
+    double pingPongWindowSec = 1.0;
 
     bool trafficMultiplierEnabled = true;
     double udpBaseIntervalMs = 200.0;

@@ -555,6 +555,30 @@ NrEpcPgwApplication::SendToTunDevice(Ptr<Packet> packet, uint32_t teid)
                         << " at front is only a fragment (size=" << front.currentSize << ")");
             return;
         }
+        // Metadata says a whole, matching-type header is here, but
+        // RemoveHeader() downstream also demands that what it deserializes on
+        // this call matches the size metadata recorded for that entry -- a
+        // mismatch there is the other failure mode ("unexpected header").
+        // PeekHeader() never touches metadata, so this check is itself safe.
+        uint32_t deserializedSize = 0;
+        if (ipType == 0x04)
+        {
+            Ipv4Header probe;
+            deserializedSize = packet->PeekHeader(probe);
+        }
+        else
+        {
+            Ipv6Header probe;
+            deserializedSize = packet->PeekHeader(probe);
+        }
+        if (deserializedSize != front.currentSize)
+        {
+            NS_LOG_WARN("Dropping packet for TEID "
+                        << teid << " -- " << expectedHeaderTid.GetName()
+                        << " deserialized size " << deserializedSize
+                        << " does not match metadata size " << front.currentSize);
+            return;
+        }
     }
 
     m_tunDevice->Receive(packet,

@@ -19,6 +19,7 @@
 #include "ns3/ipv6-header.h"
 #include "ns3/ipv6-l3-protocol.h"
 #include "ns3/log.h"
+#include "ns3/packet-metadata.h"
 #include "ns3/packet.h"
 #include "ns3/tcp-header.h"
 #include "ns3/tcp-l4-protocol.h"
@@ -88,6 +89,36 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
 
     Ptr<Packet> pCopy = p->Copy();
 
+    // Packet::RemoveHeader() requires the packet's own metadata to already
+    // record a matching, whole (non-fragment) header entry at the front of
+    // what's left -- it does not parse header bytes on demand, and aborts
+    // the whole simulation ("unexpected header" / "incomplete header") if
+    // that entry doesn't match the header type being removed, either in type
+    // or in size. This function chains several such removals (IP, then
+    // UDP/TCP), and a mismatch at any of them is fatal by default. Route
+    // every removal through this helper instead: it only checks metadata
+    // (BeginItem()) and re-parses bytes (PeekHeader()), neither of which can
+    // abort, and only calls the real RemoveHeader() once both agree.
+    auto safeRemoveHeader = [&pCopy](Header& header) -> bool {
+        PacketMetadata::ItemIterator it = pCopy->BeginItem();
+        if (!it.HasNext())
+        {
+            return false;
+        }
+        PacketMetadata::Item front = it.Next();
+        if (front.type != PacketMetadata::Item::HEADER ||
+            front.tid != header.GetInstanceTypeId() || front.isFragment)
+        {
+            return false;
+        }
+        if (pCopy->PeekHeader(header) != front.currentSize)
+        {
+            return false;
+        }
+        pCopy->RemoveHeader(header);
+        return true;
+    };
+
     Ipv4Address localAddressIpv4;
     Ipv4Address remoteAddressIpv4;
 
@@ -103,7 +134,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
     if (protocolNumber == Ipv4L3Protocol::PROT_NUMBER)
     {
         Ipv4Header ipv4Header;
-        pCopy->RemoveHeader(ipv4Header);
+        if (!safeRemoveHeader(ipv4Header))
+        {
+            NS_LOG_WARN("Declining to classify: metadata doesn't start with a "
+                        "complete Ipv4Header");
+            return std::nullopt;
+        }
 
         if (direction == NrQosRule::UPLINK)
         {
@@ -139,7 +175,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
             if (protocol == UdpL4Protocol::PROT_NUMBER && payloadSize >= 8)
             {
                 UdpHeader udpHeader;
-                pCopy->RemoveHeader(udpHeader);
+                if (!safeRemoveHeader(udpHeader))
+                {
+                    NS_LOG_WARN("Declining to classify: metadata doesn't start "
+                                "with a complete UdpHeader");
+                    return std::nullopt;
+                }
                 if (direction == NrQosRule::UPLINK)
                 {
                     localPort = udpHeader.GetSourcePort();
@@ -164,7 +205,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
             else if (protocol == TcpL4Protocol::PROT_NUMBER && payloadSize >= 20)
             {
                 TcpHeader tcpHeader;
-                pCopy->RemoveHeader(tcpHeader);
+                if (!safeRemoveHeader(tcpHeader))
+                {
+                    NS_LOG_WARN("Declining to classify: metadata doesn't start "
+                                "with a complete TcpHeader");
+                    return std::nullopt;
+                }
                 if (direction == NrQosRule::UPLINK)
                 {
                     localPort = tcpHeader.GetSourcePort();
@@ -219,7 +265,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
     else if (protocolNumber == Ipv6L3Protocol::PROT_NUMBER)
     {
         Ipv6Header ipv6Header;
-        pCopy->RemoveHeader(ipv6Header);
+        if (!safeRemoveHeader(ipv6Header))
+        {
+            NS_LOG_WARN("Declining to classify: metadata doesn't start with a "
+                        "complete Ipv6Header");
+            return std::nullopt;
+        }
 
         if (direction == NrQosRule::UPLINK)
         {
@@ -241,7 +292,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
         if (protocol == UdpL4Protocol::PROT_NUMBER)
         {
             UdpHeader udpHeader;
-            pCopy->RemoveHeader(udpHeader);
+            if (!safeRemoveHeader(udpHeader))
+            {
+                NS_LOG_WARN("Declining to classify: metadata doesn't start with "
+                            "a complete UdpHeader");
+                return std::nullopt;
+            }
 
             if (direction == NrQosRule::UPLINK)
             {
@@ -257,7 +313,12 @@ NrQosRuleClassifier::Classify(Ptr<Packet> p,
         else if (protocol == TcpL4Protocol::PROT_NUMBER)
         {
             TcpHeader tcpHeader;
-            pCopy->RemoveHeader(tcpHeader);
+            if (!safeRemoveHeader(tcpHeader))
+            {
+                NS_LOG_WARN("Declining to classify: metadata doesn't start with "
+                            "a complete TcpHeader");
+                return std::nullopt;
+            }
             if (direction == NrQosRule::UPLINK)
             {
                 localPort = tcpHeader.GetSourcePort();
