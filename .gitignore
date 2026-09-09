@@ -63,6 +63,10 @@ vcpkg/
 scenarios/khu-real/sionna_rt_cache.h5
 scenarios/khu-real/sionna_rt_cache_lzf.h5
 
+# Per-cell RET caches assembled on demand from ret_caches/tilt_*deg/ groups
+# (pure HDF5 copy, no ray tracing -- see build_merged_ret_cache.py)
+scenarios/khu-real/ret_caches/merged_percell/
+
 # Timestamped simulation results are runtime artifacts; keep only their schema docs.
 scenarios/results/*/
 !scenarios/results/KPI_SCHEMA.md
