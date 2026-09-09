@@ -35,7 +35,6 @@ sudo apt install -y \
 
 ## 3) 저장소 clone
 
-DEPS_ROOT/e2sim/asn1c 단계는 필요 없습니다 (RIC 연동용이며 이번 작업과 무관).
 저장소가 private이면 clone 시 GitHub 사용자명 + 개인 액세스 토큰(PAT)이
 필요합니다 -- **본인 계정에서 직접 발급받은 토큰을 쓰세요, 다른 사람과 토큰을
 공유하지 마세요** (Settings -> Developer settings -> Personal access tokens,
@@ -47,6 +46,29 @@ git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git "$REPO_R
 cd "$REPO_ROOT"
 ```
 
+### 3.1) e2sim (컴파일에 필요 -- 런타임에는 안 씀)
+
+`contrib/nr`가 `contrib/oran-interface`를 무조건 include하고, 거기서 e2sim이
+생성하는 ASN.1 헤더(`E2SM-KPM-RANfunction-Description.h` 등)를 참조합니다.
+GNN 스윕 자체는 이 RIC/E2 코드를 실행하지 않지만, e2sim 헤더/라이브러리가
+`/usr/local`에 없으면 **빌드 자체가 실패**합니다. FlexRIC(실제 RIC 프로세스)는
+필요 없지만 e2sim은 건너뛸 수 없습니다.
+
+```bash
+export DEPS_ROOT="$HOME/LENA-oran-flexric-smo-deps"
+mkdir -p "$DEPS_ROOT"
+
+git clone https://github.com/MinaYonan123/e2sim-kpmv3.git "$DEPS_ROOT/e2sim-kpmv3"
+git -C "$DEPS_ROOT/e2sim-kpmv3" checkout --detach acf4f6b2baa8c645af566ea210146abd97de1f48
+
+cd "$DEPS_ROOT/e2sim-kpmv3/e2sim"
+mkdir -p build
+./build_e2sim.sh 2   # /usr/local에 설치하므로 sudo 비밀번호를 물어볼 수 있음
+
+test -f /usr/local/lib/libe2sim.a && test -d /usr/local/include/e2sim && echo OK
+cd "$REPO_ROOT"
+```
+
 ## 4) Python 가상환경
 
 ```bash
@@ -55,18 +77,22 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-# e2sim 관련 경고는 무시해도 됩니다 (--require-e2 플래그를 주지 않으면 실패로 취급 안 함)
-python scripts/check_environment.py
+python scripts/check_environment.py --require-e2
 ```
 
 ## 5) ns-3 설정 및 빌드
 
-`--enable-python-bindings`는 필요 없습니다 (ns-3 자체 SWIG Python 바인딩
-기능이며, "Sionna-RT support enabled" 메시지는 `pybind11` CMake 패키지
-탐지로 뜨는 별개 항목입니다 -- 빌드만 느려집니다).
+`--enable-python-bindings`가 **필요합니다**. 이름과 달리 ns-3 자체 SWIG Python
+바인딩을 쓰려는 게 아니라, 이 플래그가 켜지면 ns-3 최상위 CMake 코드가
+`find_package(Python3 COMPONENTS Interpreter Development)`를 먼저 실행해서
+Development(헤더/라이브러리) 탐지 결과를 캐시에 성공적으로 채워둡니다. 이
+플래그 없이 진행하면 나중에 pybind11이 Python을 찾을 때 이 캐시가 없어서
+`Python.h: No such file or directory`로 빌드가 실패하는 사례가 실제로
+확인됐습니다 (venv에 pip으로 pybind11만 설치돼 있고 시스템에 `python3.12-dev`가
+멀쩡히 있어도 이 순서 문제 때문에 실패함).
 
 ```bash
-./ns3 configure --enable-examples --enable-tests
+./ns3 configure --enable-examples --enable-tests --enable-python-bindings
 ./ns3 build khu-real-dual-nr-sionna-final
 ```
 

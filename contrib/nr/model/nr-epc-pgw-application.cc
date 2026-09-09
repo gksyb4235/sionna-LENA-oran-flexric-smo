@@ -291,10 +291,6 @@ NrEpcPgwApplication::RecvFromS5uSocket(Ptr<Socket> socket)
     NrGtpuHeader gtpu;
     packet->RemoveHeader(gtpu);
     uint32_t teid = gtpu.GetTeid();
-    NS_LOG_UNCOND("[S5U diag] t=" << Simulator::Now().GetSeconds() << " teid=" << teid
-                                  << " version=" << (uint32_t)gtpu.GetVersion()
-                                  << " msgType=" << (uint32_t)gtpu.GetMessageType()
-                                  << " remainingSize=" << packet->GetSize());
 
     SendToTunDevice(packet, teid);
 }
