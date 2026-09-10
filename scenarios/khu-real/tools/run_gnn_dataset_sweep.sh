@@ -130,8 +130,8 @@ done
 echo "[GNN sweep] cache pre-build done"
 
 # ---------------------------------------------------------------------------
-# Wave-based launch: `parallel_jobs` simulations at a time, each pinned to
-# its own `cores_per_job`-wide CPU range starting at slot*cores_per_job.
+# Keep `parallel_jobs` worker slots filled, each pinned to its own
+# `cores_per_job`-wide CPU range. Reuse a slot as soon as its process exits.
 # ---------------------------------------------------------------------------
 row_is_done()
 {
@@ -152,27 +152,48 @@ terminate_active()
     wait "${active_pids[@]}" 2>/dev/null || true
   fi
 }
-trap terminate_active INT TERM
+trap terminate_active EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 total_rows="${#rows[@]}"
-for ((wave_start = 0; wave_start < total_rows; wave_start += parallel_jobs)); do
-  active_pids=()
-  active_names=()
-  active_cpus=()
-
+index=0
+while ((index < total_rows || ${#active_pids[@]} > 0)); do
   for ((slot = 0; slot < parallel_jobs; ++slot)); do
-    index=$((wave_start + slot))
+    if [[ -n "${active_pids[slot]:-}" ]]; then
+      pid="${active_pids[slot]}"
+      if kill -0 "${pid}" 2>/dev/null; then
+        continue
+      fi
+      if wait "${pid}"; then
+        exit_code=0
+      else
+        exit_code=$?
+        sweep_failed=1
+      fi
+      printf '[complete] %s cpu=%s exit=%s\n' "${active_names[slot]}" "${active_cpus[slot]}" "${exit_code}"
+      printf '%s,%s,%s,%s,%s\n' "${active_names[slot]}" "${pid}" "${active_cpus[slot]}" \
+        "${exit_code}" "$(date --iso-8601=seconds)" >> "${completion_file}"
+      unset 'active_pids[slot]' 'active_names[slot]' 'active_cpus[slot]'
+    fi
+
+    # Completed rows must not consume a worker slot.
+    while ((index < total_rows)); do
+      name="${rows[index]%%,*}"
+      if ! row_is_done "${results_root}/${name}"; then
+        break
+      fi
+      printf '[skip] %s already completed\n' "${name}"
+      index=$((index + 1))
+    done
     if ((index >= total_rows)); then
-      break
+      continue
     fi
 
     IFS=',' read -r name txp5g txp4g1 txp4g2 ret5g ret4g1 ret4g2 cio5g cio4g1 cio4g2 ttt hys <<< "${rows[index]}"
+    index=$((index + 1))
 
     run_dir="${results_root}/${name}"
-    if row_is_done "${run_dir}"; then
-      printf '[skip] %s already completed\n' "${name}"
-      continue
-    fi
     rm -rf "${run_dir}"
 
     # Extract the seed index straight out of "gnn_0042" -> 42.
@@ -229,28 +250,21 @@ for ((wave_start = 0; wave_start < total_rows; wave_start += parallel_jobs)); do
     ) > "${launcher_log}" 2>&1 &
 
     pid=$!
-    active_pids+=("${pid}")
-    active_names+=("${name}")
-    active_cpus+=("${cpu_range}")
+    active_pids[slot]="${pid}"
+    active_names[slot]="${name}"
+    active_cpus[slot]="${cpu_range}"
     printf '%s,%s\n' "${name}" "${cpu_range}" >> "${jobs_file}"
   done
 
-  for ((slot = 0; slot < ${#active_pids[@]}; ++slot)); do
-    pid="${active_pids[slot]}"
-    if wait "${pid}"; then
-      exit_code=0
-    else
-      exit_code=$?
-      sweep_failed=1
-    fi
-    printf '[complete] %s cpu=%s exit=%s\n' "${active_names[slot]}" "${active_cpus[slot]}" "${exit_code}"
-    printf '%s,%s,%s,%s,%s\n' "${active_names[slot]}" "${pid}" "${active_cpus[slot]}" \
-      "${exit_code}" "$(date --iso-8601=seconds)" >> "${completion_file}"
-  done
+  # Bash reaps exited children; kill -0 then lets us wait for each exact PID
+  # without blocking on a slower worker or losing an already-finished status.
+  if ((${#active_pids[@]} > 0)); then
+    sleep 0.2
+  fi
 done
 
 active_pids=()
-trap - INT TERM
+trap - EXIT INT TERM
 if ((sweep_failed != 0)); then
   printf '[GNN sweep] one or more runs failed -- rerun the same command to retry only the incomplete rows: %s\n' "${results_root}" >&2
   exit 1
