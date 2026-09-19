@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the 1000-row GNN training parameter grid: one row per UE mobility
-seed (scenarios/khu-real/ue_position/ue_positions_seed{0..999}.csv), with
+"""Generate the GNN training parameter grid: one row per UE mobility seed, with
 per-cell TxP/RET/CIO plus scenario-wide TTT/HYS drawn uniformly at random
-(independently, per column) from each xApp's candidate value set. IID-ness
-of the resulting sample over the full joint space is explicitly not a design
-goal here -- see conversation notes.
+(independently, per column) from each xApp's candidate value set. Duplicate
+joint parameter combinations are rejected and redrawn.
 
 Columns (12): name, txp_5g, txp_4g1, txp_4g2, ret_5g, ret_4g1, ret_4g2,
               cio_5g, cio_4g1, cio_4g2, ttt_ms, hys_db
@@ -58,12 +56,25 @@ def main():
     rng = np.random.default_rng(args.seed)
 
     rows = []
+    seen_combinations = set()
     for i in range(args.n):
-        txp_5g, txp_4g1, txp_4g2 = rng.choice(TXP_VALUES, size=3)
-        ret_5g, ret_4g1, ret_4g2 = rng.choice(RET_VALUES, size=3)
-        off_5g, off_4g1, off_4g2 = rng.choice(CIO_OFFSETS, size=3)
-        ttt_ms = rng.choice(TTT_VALUES)
-        hys_db = rng.choice(HYS_VALUES)
+        while True:
+            txp_5g, txp_4g1, txp_4g2 = rng.choice(TXP_VALUES, size=3)
+            ret_5g, ret_4g1, ret_4g2 = rng.choice(RET_VALUES, size=3)
+            off_5g, off_4g1, off_4g2 = rng.choice(CIO_OFFSETS, size=3)
+            ttt_ms = rng.choice(TTT_VALUES)
+            hys_db = rng.choice(HYS_VALUES)
+            combination = (
+                int(txp_5g), int(txp_4g1), int(txp_4g2),
+                int(ret_5g), int(ret_4g1), int(ret_4g2),
+                CIO_DEFAULT_5G + int(off_5g),
+                CIO_DEFAULT_4G + int(off_4g1),
+                CIO_DEFAULT_4G + int(off_4g2),
+                int(ttt_ms), float(hys_db),
+            )
+            if combination not in seen_combinations:
+                seen_combinations.add(combination)
+                break
 
         rows.append({
             "name": f"gnn_{i:04d}",
