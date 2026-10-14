@@ -276,11 +276,11 @@
       $('intent-prompt').value = ''; setText('example-help', '현재 제어값을 확인할 수 없어 예시를 만들 수 없습니다.'); return;
     }
     const config = {
-      txp: {unit: 'dBm', purpose: 'Energy Saving (네트워크 에너지 효율 개선)', target: current > 33 ? 33 : 30},
-      throughput: {unit: 'dBm', purpose: 'Throughput Maximization (처리량 최대화)', target: 43},
-      ret: {unit: '도', purpose: 'Coverage Optimization (평균 RSRP와 P10 개선)', target: current > 3 ? 3 : 12},
-      cio: {unit: 'dB', purpose: 'Load Balancing (PRB 불균형 완화)', target: current < (cell === '5g' ? 9 : 2) ? (cell === '5g' ? 9 : 2) : (cell === '5g' ? 5 : -2)},
-      mobility: {unit: 'ms', purpose: 'Mobility Optimization (성공 HO 대비 핑퐁 비율 감소)', target: current < 720 ? 720 : 512}
+      txp: {unit: 'dBm', purpose: 'Energy Saving rApp (네트워크 에너지 효율 개선)', target: current > 33 ? 33 : 30},
+      throughput: {unit: 'dBm', purpose: 'Throughput Maximization xApp (처리량 최대화)', target: 43},
+      ret: {unit: '도', purpose: 'Coverage Optimization rApp (평균 RSRP와 P10 개선)', target: current > 3 ? 3 : 12},
+      cio: {unit: 'dB', purpose: 'Load Balancing xApp (PRB 불균형 완화)', target: current < (cell === '5g' ? 9 : 2) ? (cell === '5g' ? 9 : 2) : (cell === '5g' ? 5 : -2)},
+      mobility: {unit: 'ms', purpose: 'Mobility Optimization xApp (성공 HO 대비 핑퐁 비율 감소)', target: current < 720 ? 720 : 512}
     }[family];
     if (family === 'txp' && current <= 30) {
       $('intent-prompt').value = '';

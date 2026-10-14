@@ -37,7 +37,7 @@
     for(const event of saved.receipts||[])box.append(el('p','',`t=${num(event.sim_time_s)}s · ${labels[event.status]||event.status}${event.reason?' · '+event.reason:''}`));
     if(saved.transport_note && !saved.applied)box.append(el('p','',saved.transport_note));
     if(saved.live)box.append(el('p','',`현재 ns3 t=${num(saved.live.sim_time_s)}s · ${saved.live.process_alive?'실행 중':'종료'}`));
-    const readback=el('details','operator-ranking');readback.append(el('summary','','ns3 실제 값 · 전달 경로 상세'),el('pre','',JSON.stringify({path:saved.path,binding:saved.binding,receipts:saved.receipts},null,2)));box.append(readback);
+    const readback=el('details','operator-ranking');readback.append(el('summary','','ns3 실제 값 · 전달 경로 상세'),el('pre','',JSON.stringify({application:saved.application,path:saved.path,a1_policy_id:saved.a1_policy_id,rapp_invocation:saved.rapp_invocation,binding:saved.binding,receipts:saved.receipts},null,2)));box.append(readback);
     updateControls();
   }
   async function pollLive() {
@@ -64,12 +64,17 @@
   function updateControls() {
     const hasReceipt = !!receipt;
     const sent=!!liveReceipt;
-    $('operator-ric').disabled = busy || hasReceipt || sent || !selected;
-    const invalidLive=isLive() && (!$('operator-live-run').value || $('operator-ric').value==='split');
+    if(isLive() && selected?.application && !hasReceipt && !sent) $('operator-ric').value=selected.application.target_ric;
+    $('operator-ric').disabled = busy || hasReceipt || sent || !selected || (isLive() && !!selected?.application);
+    const invalidLive=isLive() && (!$('operator-live-run').value || $('operator-ric').value==='split' || !selected?.application);
     $('operator-deploy').disabled = busy || (isLive()?sent:hasReceipt) || invalidLive || !completed || !selected?.deployment_eligible;
     $('operator-deploy').textContent = busy ? '요청 중…' : isLive() ? sent ? '실제 배포 요청 완료' : selected?.requires_constraint_override ? '위반 감수하고 실제 적용' : '선택안 실제 RIC으로 전송' : hasReceipt ? '대기열 등록 완료' : '배포 대기열 등록';
     $('operator-selection').textContent = selected ? `선택: 후보 ${selected.operator_rank} · ${selected.candidate_id}${selected.requires_constraint_override ? ' · 제약 위반 포함' : ''}` : '후보를 선택하세요';
     $('operator-route-note').textContent = isLive() ? $('operator-ric').value==='split' ? '실제 적용은 Near-RT 또는 Non-RT 한 경로를 선택하세요.' : '선택한 ns3에 적용하고 구간 종료 후 변경한 값을 복원합니다.' : '실제 전송 없이 오프라인 대기열에 저장합니다.';
+    if(isLive() && selected?.application) $('operator-route-note').textContent=selected.application.role==='rApp'
+      ? selected.application.name+' · Non-RT RIC (A1 Mediator) → rApp → 실행 xApp → Near-RT RIC → ns3'
+      : selected.application.name+' → 실행 xApp → Near-RT RIC → ns3';
+    else if(isLive() && selected) $('operator-route-note').textContent='실제 배포는 의도 유형에서 다섯 앱 중 하나를 지정해야 합니다.';
     $('operator-live-run').disabled=busy || sent || !isLive();
     document.querySelectorAll('.operator-choice').forEach(input => {input.disabled = busy || hasReceipt || sent;});
     document.querySelectorAll('.operator-card').forEach(card => {
@@ -108,6 +113,7 @@
       radio.addEventListener('change', () => {selected = row; $('operator-ric').value = row.suggested_ric; updateControls();});
       label.append(radio, el('strong', '', `후보 ${row.operator_rank}`), el('span', `pill ${row.feasible ? 'good' : 'warn'}`, !row.deployment_eligible ? '판정 불가' : row.feasible ? '제약 충족' : '최소 위반 검토안'));
       card.append(label, el('div', 'operator-id', row.candidate_id));
+      if(row.application)card.append(el('p','operator-time',row.application.name+' · '+names[row.application.target_ric]));
       const current = row.current_parameters || result.execution_plan?.current_parameters || {};
       for (const [key, value] of Object.entries(row.changes)) {
         const unit = ({txp:'dBm', ret:'°', cio:'dB', ttt:'ms', hys:'dB'})[key.split('_')[0]] || '';

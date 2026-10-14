@@ -38,6 +38,18 @@ def get(url):
 
 def services():
     return {
+        "non-rt": [
+            PYTHON,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--app-dir",
+            ROOT / "A1_Mediator_standalone/A1_Mediator",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "9000",
+        ],
         "ui": [PYTHON, "-m", "agora_offline.server", "--port", "18081"],
         "gateway": [PYTHON, "-m", "smo.ric_control.gateway", "--port", "18082"],
         "ric": [
@@ -51,7 +63,11 @@ def services():
 
 
 def start(name):
-    health = {"ui": "http://127.0.0.1:18081/api/health", "gateway": "http://127.0.0.1:18082/health"}
+    health = {
+        "non-rt": "http://127.0.0.1:9000/api/non-rt/health",
+        "ui": "http://127.0.0.1:18081/api/health",
+        "gateway": "http://127.0.0.1:18082/health",
+    }
     if name in health:
         try:
             print(f"{name}: already reachable {get(health[name])}")
@@ -243,7 +259,7 @@ def simulate(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ["up", "ui", "gateway", "ric", "monitoring", "status", "build"]:
+    for name in ["up", "ui", "gateway", "non-rt", "ric", "monitoring", "status", "build"]:
         sub.add_parser(name)
     sim = sub.add_parser("simulate")
     sim.add_argument("--from-session")
@@ -272,10 +288,11 @@ def main():
     if args.command in ("monitoring", "up"):
         execute(["docker", "compose", "--project-directory", ROOT / "monitoring", "up", "-d"])
         if args.command == "up":
-            for name in ["ric", "gateway", "ui"]:
+            for name in ["ric", "gateway", "non-rt", "ui"]:
                 start(name)
     elif args.command == "status":
         for name, url in [
+            ("non-rt", "http://127.0.0.1:9000/api/non-rt/health"),
             ("ui", "http://127.0.0.1:18081/api/health"),
             ("gateway", "http://127.0.0.1:18082/health"),
             ("grafana", "http://127.0.0.1:3000/api/health"),

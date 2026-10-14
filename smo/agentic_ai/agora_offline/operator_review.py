@@ -4,10 +4,11 @@ from copy import deepcopy
 import hashlib
 import json
 import math
+from .applications import application_for
 
 
 RANKING = {
-    "version": "operator-review-v1",
+    "version": "operator-review-v2-app-role",
     "order": [
         "fully_evaluable_feasible_first",
         "fully_evaluable_before_unknown",
@@ -57,7 +58,7 @@ def review_score(row):
     }
 
 
-def shortlist(rows, limit=3):
+def shortlist(rows, limit=3, intent=None):
     unique = {}
     for row in rows:
         if row.get("status") == "invalid" or not row.get("parameters"):
@@ -95,6 +96,10 @@ def shortlist(rows, limit=3):
             if families <= {"cio", "ttt", "hys"}
             else "split"
         )
+        application = application_for(intent)
+        if application is not None:
+            row["application"] = application.describe()
+            row["suggested_ric"] = application.target_ric
         row["requires_constraint_override"] = not row["feasible"]
         row["deployment_eligible"] = row["operator_score"]["fully_evaluable"]
         row["review_kind"] = (
@@ -134,5 +139,5 @@ def ensure_review(result, events):
         rows = result.get("top_candidates", []) + result.get("infeasible_diagnostics", [])
         if result.get("original"):
             rows.append(result["original"])
-    result["operator_review"] = shortlist(rows)
+    result["operator_review"] = shortlist(rows, intent=result.get("intent"))
     return result

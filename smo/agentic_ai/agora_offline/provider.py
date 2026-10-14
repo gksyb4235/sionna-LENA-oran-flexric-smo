@@ -11,11 +11,7 @@ from .settings import ROOT, INVARIANTS
 def configuration(settings=None):
     merged = {}
     parent = Path(os.environ.get("AGENTIC_AI_ROOT", ROOT.parent))
-    for path in (
-        parent / "agents/decomposition/.env",
-        parent / "agents/planning/.env",
-        parent / ".env",
-    ):
+    for path in (parent / ".env",):
         if path.is_file():
             merged.update({k: v for k, v in dotenv_values(path).items() if v})
     merged.update(os.environ)
@@ -38,7 +34,7 @@ def public_configuration(settings=None):
     return {
         "configured": bool(conf["key"]),
         "model": conf["model"],
-        "credential_source": "existing Agentic AI environment; server only",
+        "credential_source": "agentic_ai/.env or process environment; server only",
         "api": "responses",
         "streaming": True,
         "reasoning_display": "public decision summaries and tool evidence",

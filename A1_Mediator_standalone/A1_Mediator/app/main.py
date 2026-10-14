@@ -7,7 +7,17 @@ from pathlib import Path as OsPath
 import os
 import json, glob
 
-app = FastAPI()
+# Run both as a standalone script and through the repository launcher.
+import sys
+
+REPOSITORY_ROOT = OsPath(__file__).resolve().parents[3]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+from smo.non_rt_ric.a1 import router as agora_router
+
+app = FastAPI(title="AGORA Non-RT RIC / Standalone A1 Mediator")
+# Fixed AGORA routes take priority over the legacy generic policy endpoints.
+app.include_router(agora_router)
 
 # Add CORS middleware
 app.add_middleware(
@@ -20,8 +30,9 @@ app.add_middleware(
 
 
 class CreateSchema(BaseModel):
-    schema_: Optional[str] = Field(alias="$schema",
-                                   default="http://json-schema.org/draft-07/schema#")  # Avoid shadowing
+    schema_: Optional[str] = Field(
+        alias="$schema", default="http://json-schema.org/draft-07/schema#"
+    )  # Avoid shadowing
     type: str = "object"
     properties: Dict[str, Dict[str, Any]] = Field(default_factory=dict)  # Allows dynamic properties
     additionalProperties: bool = False
@@ -32,7 +43,9 @@ class CreateSchema(BaseModel):
         properties = schema.properties
         for prop_name, prop_details in properties.items():
             if "type" not in prop_details or prop_details["type"] not in ["integer", "bool"]:
-                raise ValueError(f"Invalid property type for '{prop_name}'. Only 'integer' and 'bool' are allowed.")
+                raise ValueError(
+                    f"Invalid property type for '{prop_name}'. Only 'integer' and 'bool' are allowed."
+                )
         return schema
 
 
@@ -54,12 +67,12 @@ policy_instances = {}
 
 @app.get("/a1-p/healthcheck")
 async def get_healthcheck():
-    return {"status": "A1 is healthy"}
+    return {"status": "A1 is healthy", "component": "agora_non_rt_ric"}
 
 
 @app.get("/a1-p/policytypes", response_model=list[int])
 async def get_all_policy_types():
-    return list(policy_types.keys())
+    return sorted(set(policy_types) | {401})
 
 
 @app.get("/a1-p/policytypes/{policy_type_id}", response_model=PolicyTypeSchema)
@@ -70,8 +83,9 @@ async def get_policy_type(policy_type_id: int = Path(..., gt=0, lt=2147483647)):
 
 
 @app.put("/a1-p/policytypes/{policy_type_id}", response_model=PolicyTypeSchema)
-async def create_policy_type(policy_type_id: int = Path(..., gt=0, lt=2147483647),
-                             body: PolicyTypeSchema = Body(...)):
+async def create_policy_type(
+    policy_type_id: int = Path(..., gt=0, lt=2147483647), body: PolicyTypeSchema = Body(...)
+):
     if policy_type_id in policy_types:
         raise HTTPException(status_code=400, detail="Policy type already exists")
 
@@ -83,11 +97,14 @@ async def create_policy_type(policy_type_id: int = Path(..., gt=0, lt=2147483647
     return body
 
 
-@app.put("/a1-p/policytypes/{policy_type_id}/policies/{policy_instance_id}", response_model=PolicyInstanceSchema)
+@app.put(
+    "/a1-p/policytypes/{policy_type_id}/policies/{policy_instance_id}",
+    response_model=PolicyInstanceSchema,
+)
 async def create_policy_instance(
-        policy_type_id: int,
-        policy_instance_id: str,
-        body: Dict[str, Any] = Body(...),  # Expecting a flat dictionary
+    policy_type_id: int,
+    policy_instance_id: str,
+    body: Dict[str, Any] = Body(...),  # Expecting a flat dictionary
 ):
     # Check if policy type exists
     if policy_type_id not in policy_types:
@@ -102,37 +119,37 @@ async def create_policy_instance(
         if field_name not in schema_properties:
             raise HTTPException(
                 status_code=400,
-                detail=f"Field '{field_name}' is not allowed for this policy type. Allowed fields are: {list(schema_properties.keys())}"
+                detail=f"Field '{field_name}' is not allowed for this policy type. Allowed fields are: {list(schema_properties.keys())}",
             )
 
         expected_type = schema_properties[field_name]["type"]
         if expected_type == "integer" and not isinstance(field_value, int):
             raise HTTPException(
                 status_code=400,
-                detail=f"Field '{field_name}' must be an integer. Provided value: {field_value}"
+                detail=f"Field '{field_name}' must be an integer. Provided value: {field_value}",
             )
         if expected_type == "bool" and not isinstance(field_value, bool):
             raise HTTPException(
                 status_code=400,
-                detail=f"Field '{field_name}' must be a boolean. Provided value: {field_value}"
+                detail=f"Field '{field_name}' must be a boolean. Provided value: {field_value}",
             )
         if expected_type == "string" and not isinstance(field_value, str):
             raise HTTPException(
                 status_code=400,
-                detail=f"Field '{field_name}' must be a string. Provided value: {field_value}"
+                detail=f"Field '{field_name}' must be a string. Provided value: {field_value}",
             )
 
     # Check for missing required fields
     for required_field, details in schema_properties.items():
         if required_field not in body:
             raise HTTPException(
-                status_code=400,
-                detail=f"Missing required field '{required_field}'."
+                status_code=400, detail=f"Missing required field '{required_field}'."
             )
 
     # Save the instance under the policy type directly
     policy_instances[policy_type_id][policy_instance_id] = {"data": body}
     return {"data": body}
+
 
 @app.get("/a1-p/policytypes/{policy_type_id}/policies/{policy_instance_id}/status")
 async def get_policy_instance_status(policy_type_id: int, policy_instance_id: str):
@@ -143,6 +160,7 @@ async def get_policy_instance_status(policy_type_id: int, policy_instance_id: st
 
     # Return the stored policy instance data directly
     return policy_instances[policy_type_id][policy_instance_id]
+
 
 @app.get("/a1-p/policytypes/{policy_type_id}/policies", response_model=list[str])
 async def list_policy_instances(policy_type_id: int):
@@ -156,7 +174,9 @@ async def delete_policy_type(policy_type_id: int = Path(..., gt=0, lt=2147483647
     if policy_type_id not in policy_types:
         raise HTTPException(status_code=404, detail="Policy type not found")
     if policy_type_id in policy_instances and policy_instances[policy_type_id]:
-        raise HTTPException(status_code=400, detail="Policy type cannot be deleted because there are instances")
+        raise HTTPException(
+            status_code=400, detail="Policy type cannot be deleted because there are instances"
+        )
     del policy_types[policy_type_id]
     del policy_instances[policy_type_id]
     return {"detail": "Policy type successfully deleted"}
@@ -177,7 +197,7 @@ path = abs_path + "/../policies/"
 
 
 def load_policies():
-    pattern = os.path.join(path, '*.json')
+    pattern = os.path.join(path, "*.json")
     for filename in glob.glob(pattern):
         with open(filename, "r") as outfile:
             json_object = json.load(outfile)
@@ -188,5 +208,6 @@ def load_policies():
 
 if __name__ == "__main__":
     import uvicorn  # Ensure import is included
+
     load_policies()
-    uvicorn.run(app, host="0.0.0.0", port=9000)
+    uvicorn.run(app, host="127.0.0.1", port=9000)

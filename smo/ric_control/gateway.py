@@ -1,23 +1,21 @@
 """Loopback HTTP routes for real FlexRIC/E2 deployment.
 
-The Non-RT endpoint is a local A1 policy adapter, not a complete O-RAN SC RIC.
+rApp execution requires a matching policy in A1_Mediator_standalone.
 Application success comes from ns-3 readbacks, independently of xApp exit status.
 """
 
 import json
-from fastapi import BackgroundTasks, FastAPI
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import BackgroundTasks, FastAPI, HTTPException
+import os
+import httpx
+from .messages import Submission, RAppSubmission, submission_digest
 from .dispatch import submit
-from .protocol import identifier
 from .state import RUNS, live_run, reconcile
 
 app = FastAPI(title="AGORA RIC/ns-3 control gateway")
 
 
-class Submission(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    live_run_id: str = Field(pattern="^[0-9a-f]{32}$")
-    plan: dict
+A1_BASE = os.environ.get("AGORA_A1_MEDIATOR", "http://127.0.0.1:9000").rstrip("/")
 
 
 @app.exception_handler(ValueError)
@@ -52,8 +50,29 @@ def near_rt(body: Submission, background: BackgroundTasks):
 
 @app.put("/a1-p/policytypes/401/policies/{ident}", status_code=202)
 def non_rt(ident: str, body: Submission, background: BackgroundTasks):
-    if identifier(ident) != body.plan.get("deployment_id"):
-        raise ValueError("Policy id mismatch")
+    raise HTTPException(410, "Submit rApp policies to A1_Mediator_standalone on port 9000")
+
+
+@app.post("/api/rapp/deployments", status_code=202)
+async def from_rapp(body: RAppSubmission, background: BackgroundTasks):
+    if body.policy_id != body.plan.get("deployment_id"):
+        raise ValueError("A1 policy identity mismatch")
+    try:
+        async with httpx.AsyncClient(timeout=10, trust_env=False) as client:
+            response = await client.get(
+                A1_BASE + "/a1-p/policytypes/401/policies/" + body.policy_id
+            )
+        response.raise_for_status()
+        policy = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(503, "Standalone A1 policy verification failed") from exc
+    expected = body.model_dump(include={"live_run_id", "plan"})
+    if (
+        policy.get("submission") != expected
+        or policy.get("policy_sha256") != body.policy_sha256
+        or body.policy_sha256 != submission_digest(body)
+    ):
+        raise ValueError("Forwarded rApp plan differs from the stored A1 policy")
     return submit(body, background, "non_rt")
 
 

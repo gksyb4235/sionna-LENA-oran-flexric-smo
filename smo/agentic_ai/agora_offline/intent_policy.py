@@ -10,11 +10,11 @@ from .contracts import CELLS, HORIZONS, ContractError, validate_intent
 VERSION = "threshold-v3-app5"
 REFERENCE_PATH = Path(__file__).parent / "context" / "threshold_reference.json"
 PURPOSES = {
-    "energy_saving": "Energy Saving · TxP",
-    "throughput": "Throughput Maximization · TxP / RET",
-    "load_balancing": "Load Balancing · CIO",
-    "handover_control": "이동성 최적화",
-    "coverage": "커버리지 개선",
+    "energy_saving": "Energy Saving rApp · TxP",
+    "throughput": "Throughput Maximization xApp · TxP / RET",
+    "load_balancing": "Load Balancing xApp · CIO",
+    "handover_control": "Mobility Optimization xApp · TTT / HYS",
+    "coverage": "Coverage Optimization rApp · RET",
     "custom": "복합 / 사용자 정의",
 }
 

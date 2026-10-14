@@ -10,7 +10,9 @@
         "goodput_mbps"
       ],
       "goal": "network_energy_eff_mbit_per_j",
-      "direction": "increase"
+      "direction": "increase",
+      "role": "rApp",
+      "target_ric": "non_rt"
     },
     {
       "id": "throughput",
@@ -24,7 +26,9 @@
         "bler_pct"
       ],
       "goal": "goodput_mbps",
-      "direction": "increase"
+      "direction": "increase",
+      "role": "xApp",
+      "target_ric": "near_rt"
     },
     {
       "id": "coverage",
@@ -38,7 +42,9 @@
         "sinr_interval_mean_db"
       ],
       "goal": "rsrp_p10_dbm",
-      "direction": "increase"
+      "direction": "increase",
+      "role": "rApp",
+      "target_ric": "non_rt"
     },
     {
       "id": "load_balancing",
@@ -50,7 +56,9 @@
         "prb_pct"
       ],
       "goal": "prb_imbalance",
-      "direction": "decrease"
+      "direction": "decrease",
+      "role": "xApp",
+      "target_ric": "near_rt"
     },
     {
       "id": "handover_control",
@@ -67,10 +75,12 @@
         "delay_over_100ms_pct"
       ],
       "goal": "pingpong_per_success_pct",
-      "direction": "decrease"
+      "direction": "decrease",
+      "role": "xApp",
+      "target_ric": "near_rt"
     }
   ],
   "provenance": "Declared control capabilities and objectives, not learned app policy behavior",
   "multiple_apps_may_control_same_rcp": true,
-  "layer": "Deployment metadata selected by operator, not inferred from RCP type"
+  "layer": "Application-role routing; rApps use standalone A1 then the shared execution xApp"
 }

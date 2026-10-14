@@ -19,6 +19,7 @@ from .estimator import Estimator
 from .intent_policy import catalog, compile_spec
 from .orchestrator import Session
 from .operator_review import ensure_review
+from .applications import application_for
 from .deployment_queue import enqueue, get_receipt, list_receipts, QueueConflict
 from .provider import public_configuration
 from .settings import ROOT, STATE, read_settings, write_settings
@@ -212,6 +213,29 @@ async def live_deployment(ident: str, body: LiveDeploymentInput):
     if body.target_ric == "split":
         raise HTTPException(422, "실제 적용은 Near-RT 또는 Non-RT 경로를 선택하세요.")
     try:
+        result = ensure_review(session.result, session.events)
+        if session.status != "completed" or not result:
+            raise HTTPException(409, "Complete the evaluated application intent first")
+        application = application_for(result.get("intent"))
+        if application is None:
+            raise HTTPException(422, "Live deployment needs one of the five application intents")
+        candidate = next(
+            (
+                row
+                for row in result["operator_review"]["candidates"]
+                if row["candidate_id"] == body.candidate_id
+            ),
+            None,
+        )
+        if candidate is None:
+            raise HTTPException(422, "Unknown reviewed candidate")
+        application.prepare(
+            {
+                "target_ric": body.target_ric,
+                "candidate": candidate,
+                "current_parameters": result["execution_plan"]["current_parameters"],
+            }
+        )
         receipt = await asyncio.to_thread(
             enqueue, STATE, session, **body.model_dump(exclude={"live_run_id"})
         )
@@ -226,7 +250,7 @@ async def live_deployment_status(ident: str):
     receipt = await asyncio.to_thread(get_receipt, STATE, ident)
     if receipt is None:
         raise HTTPException(404, "등록된 실행안이 없습니다.")
-    return await live_control.request("GET", "/api/deployments/" + receipt["deployment_id"])
+    return await live_control.deployment_status(receipt)
 
 
 @app.get("/api/deployments")

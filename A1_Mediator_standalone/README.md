@@ -1,3 +1,15 @@
+# AGORA standalone A1 / Non-RT integration
+
+The active repository launcher is `python scripts/agora.py non-rt`, or `python scripts/agora.py up` for all services. It hosts this mediator on loopback port9000 and includes the AGORA router from `smo/non_rt_ric/a1.py`.
+
+Policy type 401 is reserved for reviewed Energy Saving and Coverage rApp interventions. It adds nested schema validation, persistent policy instances, duplicate protection, rApp dispatch to the execution xApp gateway and ns3-backed status. Other policy types retain the generic legacy API. The 401 route uses the original reviewed values and schedule; it does not run a second optimizer.
+
+This local research integration is not a full A1 conformance claim. See [SMO architecture](../smo/README.md) and [execution guide](../AGORA.md).
+
+---
+
+The original standalone mediator documentation follows. Its simple in-memory policy behavior applies to legacy policy types, not the persistent AGORA type401.
+
 Standalone A1 Mediator for FlexRIC
 ======== 
 

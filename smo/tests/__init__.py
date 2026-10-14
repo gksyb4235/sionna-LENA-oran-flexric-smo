@@ -1,1 +1,0 @@
-"""SMO automated tests."""

@@ -918,7 +918,8 @@ class Session:
             feasible, diagnostics = self.ranked()
             selected = deepcopy(feasible[0]) if feasible else None
             operator_review = shortlist(
-                [row for evaluation in self.evaluations for row in evaluation["all_candidates"]]
+                [row for evaluation in self.evaluations for row in evaluation["all_candidates"]],
+                intent=self.intent,
             )
             coverage = (
                 await self.publish_search_report()

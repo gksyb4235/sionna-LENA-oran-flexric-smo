@@ -14,11 +14,12 @@ python scripts/agora.py up
 |---|---|
 | Agent UI·후보 선택·적용 상태 | http://127.0.0.1:18081 |
 | 기존 GNN 개요 | http://127.0.0.1:8773 |
+| Non-RT RIC · standalone A1 API | http://127.0.0.1:9000/docs |
 | RIC 제어 게이트웨이 API | http://127.0.0.1:18082/docs |
 | Grafana | http://127.0.0.1:3000 |
 | InfluxDB 1.8 | http://127.0.0.1:8086 |
 
-`up`은 모니터링 컨테이너와 RIC·게이트웨이·UI를 시작합니다. 8773의 기존 개요 서비스는 변경하거나 재시작하지 않습니다. Grafana의 현재 로컬 계정은 `admin/admin`입니다.
+`up`은 모니터링 컨테이너와 Near-RT RIC·게이트웨이·Non-RT A1 Mediator·UI를 시작합니다. 8773의 기존 개요 서비스는 변경하거나 재시작하지 않습니다. Grafana의 현재 로컬 계정은 `admin/admin`입니다.
 
 1. UI에서 기준 실행, 판단 시점, 90/180초 구간과 목표·제약을 설정합니다. 먼저 GNN 평가를 완료합니다.
 2. 후보 영역에 표시되는 **해당 세션의 시작 명령**을 WSL에서 실행합니다.
@@ -28,7 +29,7 @@ python scripts/agora.py up
    ```
 
 3. UI의 `실행 새로고침`으로 연결된 ns3 실행을 선택합니다. 평가에 사용한 기준 실행과 11개 초기 파라미터가 일치해야 합니다.
-4. 후보 하나와 Near-RT/Non-RT 경로를 선택한 뒤 실제 전송 버튼을 누릅니다. 제약 위반 후보는 위반을 감수하는 버튼으로 구분됩니다.
+4. 후보 하나를 선택한 뒤 실제 전송 버튼을 누릅니다. 앱 역할에 따라 rApp은 Non-RT, xApp은 Near-RT 경로로 고정됩니다. 제약 위반 후보는 위반을 감수하는 버튼으로 구분됩니다.
 5. `ns3 예약 확인 → ns3 적용 확인 → 원래 값 복원 확인`을 확인합니다. 세부 항목에는 시각과 실제 읽어온 파라미터가 있습니다.
 
 예약은 **벽시계가 아닌 시뮬레이션 시각**입니다. 예측이 t=180~360초라면 ns3가 180초에 도달하기 전에 전송해야 합니다. 지난 예측을 임의로 미래로 옮기지 않습니다. 이 경우 동일 실행을 다시 시작하거나 적절한 판단 시점으로 재평가합니다. 시뮬레이션 종료는 복원 시각보다 뒤여야 합니다.
@@ -49,8 +50,9 @@ flowchart LR
   A[데이터 재생 · Temporal GNN · Agent] --> B[후보 3개 · 운영자 선택]
   B --> C[검증된 실행안 · 시각 · 원래 값]
   C -->|Near-RT 선택| X[실행 xApp]
-  C -->|Non-RT 선택| P[로컬 A1 정책 어댑터]
-  P --> X
+  C -->|Non-RT 선택| P[A1_Mediator_standalone 기반 Non-RT RIC]
+  P --> RA[Energy Saving / Coverage rApp]
+  RA --> X
   X --> R[저장소 내 FlexRIC Near-RT RIC]
   R -->|E2SM-RC| N[ns3 제어기]
   N --> V[실제 파라미터 · RET 채널 변경]
@@ -58,7 +60,9 @@ flowchart LR
   S --> B
 ```
 
-Non-RT 경로는 이 저장소의 **로컬 A1 정책 어댑터**입니다. 완전한 외부 O-RAN SC Non-RT RIC을 설치한 것으로 해석하지 않습니다. 정책을 저장한 후 실행 xApp으로 전달하며, 실제 네트워크 제어 구간은 두 경로 모두 동일한 FlexRIC/E2를 사용합니다.
+Non-RT 경로는 기존 A1_Mediator_standalone에서 실행하는 로컬 Non-RT RIC입니다. Energy Saving·Coverage rApp이 동일한 앱 계약으로 원안을 검증한 뒤 실행 xApp으로 전달합니다. Throughput·Load Balancing·Mobility는 xApp이며 Near-RT 경로를 사용합니다. 같은 TxP/RET라도 앱 의도가 다르면 경로가 달라집니다. 학습된 GNN은 변경하지 않습니다.
+
+정책 유형 401은 중첩 실행안 스키마·SQLite 영속 저장·상태 조회를 제공합니다. 실행 게이트웨이는 A1에 저장된 정책과 전달된 값의 일치를 확인합니다. 정책 ID를 재사용해 내용을 바꿀 수 없으며, 삭제 API로 이미 예약된 동작을 취소하지 않습니다. 범용 외부 O-RAN SC 플랫폼이나 완전한 A1 표준 준수 구현으로 주장하지 않습니다.
 
 E2SM-RC에는 로컬 확장 style=401, action=1, parameter=33000을 사용합니다. payload는 하나의 시작·종료 시각과 3개 셀의 5종 파라미터 검사를 담습니다. 이 확장은 표준화된 범용 제어 모델이라고 주장하지 않습니다. `xapp_agora_ctrl.c`와 `agora-ric-controller.cc`가 같은 계약을 구현합니다.
 
@@ -75,6 +79,8 @@ E2SM-RC에는 로컬 확장 style=401, action=1, parameter=33000을 사용합니
 | HYS | 같은 A3 설정·RRC 재설정 경로 | 0.5~5 dB, 0.5 dB 단위 |
 
 TTT·HYS는 모델에서 전역 파라미터 두 개이며 세 셀에 함께 적용합니다. Real RRC에서는 인코딩 가능한 TTT 열거값만 허용합니다. 학습값 340/720 ms를 조용히 320/640 ms로 바꾸지 않습니다. 실제 적용은 Near-RT 또는 Non-RT 중 한 경로로 원자적으로 전달합니다. split은 기존 오프라인 대기열에서만 지원합니다.
+
+실제 배포는 다섯 선언 앱 중 하나와 그 앱의 제어 범위가 일치해야 합니다. 복합/사용자 정의 의도는 오프라인 평가를 유지합니다.
 
 현재 canonical 시나리오는 `khu-real-dual-nr-sionna-final`입니다. `4G_1/4G_2`는 데이터셋의 셀 이름이며 여기서는 **1.8 GHz NR**로 시뮬레이션됩니다. 별도 LTE 스택으로 주장하면 안 됩니다.
 
@@ -94,7 +100,8 @@ TTT·HYS는 모델에서 전역 파라미터 두 개이며 세 셀에 함께 적
 | 경로 | 역할 |
 |---|---|
 | `scripts/agora.py` | 서비스·빌드·시나리오 통합 명령 |
-| `smo/agentic_ai/agora_offline/` | 기존 Temporal GNN, Agent, UI, 사용자 설정 |
+| `smo/agentic_ai/agora_offline/` | 현재 Temporal GNN, Agent, UI, 사용자 설정 |
+| `smo/non_rt_ric/` | standalone A1 정책 저장·rApp 처리 |
 | `smo/ric_control/` | RIC gateway, 제어 계약, 연결 테스트 |
 | `smo/ric_control/config/` | 실제 사용하는 FlexRIC 설정, 실행별 trace 대응표 |
 | `flexric/examples/xApp/c/ctrl/xapp_agora_ctrl.c` | 실제 E2 제어 송신 xApp |
@@ -104,7 +111,7 @@ TTT·HYS는 모델에서 전역 파라미터 두 개이며 세 셀에 함께 적
 | `experiments/agora_runtime/logs/` | 서비스·xApp 로그 |
 | `experiments/agora_runtime/backups/` | 이식 전 원본 및 변경 manifest |
 
-서비스·설정·런타임 결과를 구분하고 README에서 새 진입점을 안내했습니다. 데이터셋, RET 캐시, 기존 시나리오, 기존 MongoDB·대시보드는 삭제하지 않았습니다. 결과·DB·백업은 Git 소스에서 제외합니다. 서로 다른 `/home/user/flexric`와 `/home/user/ns-O-RAN-flexric/flexric` 명령을 섞지 말고 이 저장소의 launcher를 사용하십시오.
+서비스·설정·런타임 결과를 구분하고 README에서 새 진입점을 안내했습니다. 데이터셋, RET 캐시, 기존 시나리오, 기존 Agent·대시보드·aimlfw 관련 트리는 의존성을 해제하고 복원 가능한 로컬 보관 위치로 이동했습니다. 결과·DB·백업은 Git 소스에서 제외합니다. 서로 다른 `/home/user/flexric`와 `/home/user/ns-O-RAN-flexric/flexric` 명령을 섞지 말고 이 저장소의 launcher를 사용하십시오.
 
 GNN 실행 ID와 데이터셋 폴더 번호가 다를 수 있습니다. `replay_sources.json`은 1,000개 실행을 실제 UE CSV로 대응시키며, launcher가 SHA-256을 검사합니다. 예: GNN `gnn_0130`은 학습 원본 seed130 경로에 연결됩니다. 단순히 `gnn_0130` 이름의 다른 폴더를 추정해 사용하지 않습니다.
 
@@ -153,3 +160,10 @@ PYTHONPATH=.venv/lib/python3.12/site-packages ./build/scratch/ns3.48-agora-ret-c
 실제 GNN + 브라우저 후보 선택 + FlexRIC/E2 + ns3의 t=180 적용/t=360 복원, 두 RIC 경로의 5종 파라미터 적용, 실제 Sionna 캐시 시나리오의 적용·복원 및 Influx/Grafana 기록을 검증했습니다. 결과는 `experiments/agora_runtime/*-results.json` 등에 남습니다.
 
 현재 GNN 입력은 합의된 **기존 데이터 재생**입니다. 방금 실행한 ns3 KPI 스트림으로 history를 자동 교체하는 완전한 온라인 추론은 이식 범위에 포함하지 않았습니다. 동일 trace·초기값 연결은 비교 조건을 맞추지만 난수·실행 상태의 완전 일치를 보장하지 않습니다. 최종 성능 평가는 동일 조건의 유지/원안/선택안 분기 시뮬레이션과 90/180초 KPI 집계로 수행해야 하며, 제어 연결 테스트만으로 KPI 개선·안전성·900초 전체 실험 완료를 주장하지 않습니다.
+
+
+## 정리된 SMO와 설정
+
+[smo/README.md](smo/README.md)에 현재 폴더 역할과 앱별 전달 경로를 정리했습니다. LLM 설정은 smo/agentic_ai/.env 또는 프로세스 환경변수에서 읽습니다. 구형 agents 내부 설정은 참조하지 않습니다. 기존 코드·가상환경·상태의 보관 명세는 experiments/agora_runtime/legacy/latest.json입니다.
+
+새 Non-RT 서비스만 실행하려면 python scripts/agora.py non-rt를 사용합니다. 실제 동작 확인은 포트 9000의 /api/non-rt/health, /api/non-rt/apps와 /a1-p/policytypes/401에서 할 수 있습니다. API 정책 상태는 ns3 readback을 반영하며, 저장된 정책 자체가 적용 성공을 뜻하지 않습니다.

@@ -1,11 +1,12 @@
 """Validate reviewed plans, reserve durable IDs, and send controls through E2."""
 
-import hashlib
 import json
 import os
 import subprocess
 import threading
 from .protocol import encode, identifier
+from .messages import submission_digest
+from smo.agentic_ai.agora_offline.applications import prepare_application
 from .state import ROOT, RUNTIME, database, live_run, now, read_saved, reconcile, update
 
 # FlexRIC xApps are short-lived clients. Serialize their connection lifecycle.
@@ -67,9 +68,8 @@ def submit(body, background, route):
     if plan.get("target_ric") != route:
         raise ValueError("Selected route does not match the endpoint")
     ident = identifier(plan["deployment_id"])
-    digest = hashlib.sha256(
-        json.dumps(body.model_dump(), sort_keys=True, allow_nan=False).encode()
-    ).hexdigest()
+    application, plan = prepare_application(plan, "rApp" if route == "non_rt" else "xApp")
+    digest = submission_digest(body)
     with database() as db:
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute("SELECT fingerprint FROM deployments WHERE id=?", (ident,)).fetchone()
@@ -88,6 +88,8 @@ def submit(body, background, route):
                 "target_ric": route,
                 "status": "accepted",
                 "plan": plan,
+                "application": application.describe(),
+                "a1_policy_id": ident if route == "non_rt" else None,
                 "binding": binding,
                 "created_at": now(),
                 "policy_stored": route == "non_rt",
@@ -98,14 +100,15 @@ def submit(body, background, route):
                 "ns3_performance_validated": False,
                 "receipts": [],
                 "path": [
-                    "local_A1_policy_adapter",
+                    "Non_RT_RIC",
+                    application.name,
                     "execution_xApp",
                     "FlexRIC_Near_RT",
                     "E2",
                     "ns3",
                 ]
                 if route == "non_rt"
-                else ["execution_xApp", "FlexRIC_Near_RT", "E2", "ns3"],
+                else [application.name, "execution_xApp", "FlexRIC_Near_RT", "E2", "ns3"],
             }
             db.execute(
                 "INSERT INTO deployments VALUES (?,?,?)",
