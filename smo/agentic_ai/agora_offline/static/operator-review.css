@@ -1,0 +1,33 @@
+.operator-panel { margin-top:24px; min-width:0; }
+.operator-intro,.operator-queue-note { padding:0 24px; line-height:1.7; color:var(--muted,#a6b6c7); }
+.operator-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; padding:12px 24px; }
+.operator-card { border:1px solid #334257; border-radius:14px; padding:18px; min-width:0; background:#101b27; overflow-wrap:anywhere; }
+.operator-card.selected { border-color:#73e4c4; box-shadow:0 0 0 2px #73e4c422; }
+.operator-card-heading { display:flex; align-items:center; gap:9px; flex-wrap:wrap; cursor:pointer; }
+.operator-card-heading input { width:17px; height:17px; min-height:0; accent-color:#73e4c4; }
+.operator-card-heading .pill { margin-left:auto; font-size:11px; }
+.operator-id { color:#8a9eb4; font-size:11px; margin:10px 0 14px; }
+.operator-action { font-size:16px; font-weight:600; color:#e4f2fc; margin:6px 0; }
+.operator-time { color:#9fb0c6; font-size:12px; line-height:1.7; }
+.operator-interpolation { color:#eebd83; font-size:11px; line-height:1.7; }
+.operator-score { padding:10px; background:#263143; border-radius:8px; margin:14px 0; font-size:13px; }
+.operator-card h3 { font-size:13px; margin:20px 0 10px; }
+.operator-evidence { padding:0; list-style:none; margin:0; }
+.operator-evidence li { display:grid; gap:4px; padding:9px 0; border-bottom:1px solid #293445; font-size:12px; line-height:1.6; }
+.operator-evidence strong { font-size:12px; color:#cfdeec; }
+.operator-evidence small { font-size:11px; }
+.operator-pass small { color:#82d5bb; } .operator-fail small { color:#ffb98c; }
+.operator-card > button { margin-top:16px; }
+.operator-ranking { padding:14px 24px; color:#a6b6c7; font-size:12px; line-height:1.8; }
+.operator-ranking summary { cursor:pointer; }
+.operator-dispatch { display:flex; align-items:center; gap:18px; margin:12px 24px; padding:18px; border:1px solid #3b4b5c; border-radius:12px; flex-wrap:wrap; }
+.operator-dispatch label { display:grid; gap:8px; font-size:12px; min-width:190px; }
+.operator-dispatch select { width:100%; }
+.operator-dispatch-copy { flex:1; min-width:170px; font-size:13px; }
+.operator-dispatch-copy p { font-size:12px; color:#a6b6c7; line-height:1.7; }
+.operator-queue-note { font-size:12px; padding-bottom:12px; }
+.operator-receipt { border-top:1px solid #334257; padding:20px 24px; color:#93e5ca; line-height:1.7; overflow-wrap:anywhere; }
+.operator-receipt p { color:#b0c3d2; font-size:13px; }
+.operator-error { color:#ffb98c; padding:12px 24px; }
+@media(max-width:1200px) { .operator-cards { grid-template-columns:1fr; } }
+@media(max-width:600px) { .operator-cards { padding:8px 12px; }.operator-dispatch { margin:12px; padding:14px; }.operator-dispatch > * { width:100%; }.operator-intro,.operator-queue-note,.operator-ranking { padding-left:14px; padding-right:14px; }.operator-card { padding:14px; } }

@@ -1,3 +1,4 @@
+#include "ns3/agora-ric-controller.h"
 // Copyright (c) 2019 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 //
 // SPDX-License-Identifier: GPL-2.0-only
@@ -1576,6 +1577,13 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                                aggregate.sinrDb.size());
         double retTiltDeg = 0.0;
         double retBearingDeg = 0.0;
+        if (auto liveDev=DynamicCast<NrGnbNetDevice>(cell.gnbDev))
+        {
+            const auto config=liveDev->GetRrc()->GetA3HandoverConfig();
+            cell.tttMs=config.first;
+            cell.hysteresisDb=config.second;
+            if(ueNetDev.GetN()>0)cell.cioBiasDb=DynamicCast<NrUeNetDevice>(ueNetDev.Get(0))->GetRrc()->GetCellIndividualOffset(cellId);
+        }
         double liveTxPowerDbm = cell.txPowerDbm;
         if (cell.gnbDev)
         {
@@ -3103,6 +3111,15 @@ main(int argc, char* argv[])
         };
         Simulator::Schedule(Seconds(0), heartbeat);
     }
+
+    std::map<std::string, Ptr<NrGnbNetDevice>> agoraCells;
+    for(uint32_t i=0;i<gnbNetDev.GetN();++i)
+    {
+        const std::string name=gnbPositions[i].externalId;
+        const std::string label=name=="gNB_5G"?"5g":name=="gNB_4G_1"?"4g1":name=="gNB_4G_2"?"4g2":"cell"+std::to_string(i);
+        agoraCells[label]=DynamicCast<NrGnbNetDevice>(gnbNetDev.Get(i));
+    }
+    AgoraRicController::InstallFromEnvironment(agoraCells,simTime.GetSeconds());
 
     Simulator::Stop(simTime);
     Simulator::Run();

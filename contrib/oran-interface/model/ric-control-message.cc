@@ -394,4 +394,23 @@ RicControlMessage::RetControl RicControlMessage::GetRetControl() const
     //   return ranParameterList;
     // }
 
+
+std::string RicControlMessage::GetAgoraPayload() const
+{
+    if (!m_e2SmRcControlMessageFormat1 || !m_e2SmRcControlHeaderFormat1 ||
+        m_e2SmRcControlHeaderFormat1->ric_Style_Type != 401 ||
+        m_e2SmRcControlHeaderFormat1->ric_ControlAction_ID != 1) return {};
+    auto& list=m_e2SmRcControlMessageFormat1->ranP_List.list;
+    if (list.count != 1) return {};
+    auto item=list.array[0];
+    if (!item || item->ranParameter_ID != 33000 ||
+        item->ranParameter_valueType.present != RANParameter_ValueType_PR_ranP_Choice_ElementFalse) return {};
+    auto element=item->ranParameter_valueType.choice.ranP_Choice_ElementFalse;
+    if (!element || !element->ranParameter_value ||
+        element->ranParameter_value->present != RANParameter_Value_PR_valueOctS) return {};
+    auto& value=element->ranParameter_value->choice.valueOctS;
+    if (!value.buf || value.size == 0 || value.size > 8192) return {};
+    return std::string(reinterpret_cast<char*>(value.buf),value.size);
+}
+
 } // namespace ns3

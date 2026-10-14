@@ -17,10 +17,13 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <set>
+#include <filesystem>
 
 namespace ns3
 {
 
+namespace { std::set<SionnaLookupChannelModel*> g_lookupInstances; }
 NS_LOG_COMPONENT_DEFINE("SionnaLookupChannelModel");
 NS_OBJECT_ENSURE_REGISTERED(SionnaLookupChannelModel);
 
@@ -59,13 +62,74 @@ SionnaLookupChannelModel::GetTypeId()
     return tid;
 }
 
+
+std::vector<Ptr<SionnaLookupChannelModel>>
+SionnaLookupChannelModel::GetInstances()
+{
+    std::vector<Ptr<SionnaLookupChannelModel>> result;
+    for(auto* item:g_lookupInstances)result.push_back(item);
+    return result;
+}
+
+bool
+SionnaLookupChannelModel::PrepareRetCache(const std::string& cell,double tilt,const std::string& root)
+{
+    EnsureCacheLoaded();
+    if(!m_gnbCache.count(cell))return true; // This cell belongs to the other frequency.
+    const int degrees=std::lround(tilt);
+    if(std::abs(tilt-degrees)>1e-6)return false;
+    auto key=std::make_pair(cell,degrees);
+    if(m_retCaches.count(key))return true;
+    const std::string band=m_frequency<2e9?"1p8ghz":"3p5ghz";
+    const std::string filename="sionna_rt_cache_"+band+"_2x2_1x1_lzf.h5";
+    std::string path=root+"/tilt_"+std::to_string(degrees)+"deg/"+filename;
+    if(degrees==15)path=(std::filesystem::path(root).parent_path()/filename).string();
+    if(!std::filesystem::exists(path))return false;
+    py::object file=py::module_::import("h5py").attr("File")(path,"r");
+    if(!py::cast<bool>(file.attr("__contains__")(cell)))return false;
+    py::object attrs=file[py::str(cell)].attr("attrs");
+    const double savedTilt=py::cast<double>(attrs["tilt_deg"]);
+    const double savedFrequency=py::cast<double>(attrs["frequency_hz"]);
+    auto original=m_gnbCache.at(cell);
+    py::object pos=attrs["gnb_position"];
+    bool valid=std::abs(savedTilt-tilt)<1e-6 && std::abs(savedFrequency-m_frequency)<1 &&
+               CalculateDistance(original->position,Vector(py::cast<double>(pos[py::int_(0)]),
+                   py::cast<double>(pos[py::int_(1)]),py::cast<double>(pos[py::int_(2)])))<0.01;
+    file.attr("close")();
+    if(!valid)return false;
+    try
+    {
+        LoadCache(cell,path);
+        auto prepared=m_gnbCache.at(cell);
+        m_gnbCache[cell]=original;
+        if(prepared->numRxAnt!=original->numRxAnt || prepared->numTxAnt!=original->numTxAnt)return false;
+        m_retCaches[key]=prepared;
+    }
+    catch(...){m_gnbCache[cell]=original;throw;}
+    return true;
+}
+
+void
+SionnaLookupChannelModel::ActivateRetCache(const std::string& cell,double tilt)
+{
+    if(!m_gnbCache.count(cell))return;
+    auto key=std::make_pair(cell,static_cast<int>(std::lround(tilt)));
+    NS_ABORT_MSG_IF(!m_retCaches.count(key),"RET cache was not prepared");
+    m_gnbCache[cell]=m_retCaches.at(key);
+    m_channelMatrixMap.clear();
+    m_channelParamsMap.clear();
+    NS_LOG_UNCOND("[AGORA RET cache] " << cell << " tilt=" << tilt << " frequency=" << m_frequency);
+}
+
 SionnaLookupChannelModel::SionnaLookupChannelModel()
 {
+    g_lookupInstances.insert(this);
     NS_LOG_FUNCTION(this);
 }
 
 SionnaLookupChannelModel::~SionnaLookupChannelModel()
 {
+    g_lookupInstances.erase(this);
     NS_LOG_FUNCTION(this);
 }
 
@@ -75,6 +139,7 @@ SionnaLookupChannelModel::DoDispose()
     m_channelMatrixMap.clear();
     m_channelParamsMap.clear();
     m_gnbCache.clear();
+    m_retCaches.clear();
 }
 
 void
@@ -127,19 +192,19 @@ SionnaLookupChannelModel::EnsureCacheLoaded() const
 }
 
 void
-SionnaLookupChannelModel::LoadCache() const
+SionnaLookupChannelModel::LoadCache(const std::string& onlyCell,const std::string& path) const
 {
     NS_ABORT_MSG_IF(m_cacheFile.empty(),
                     "SionnaLookupChannelModel::CacheFile must be set to the HDF5 file built by "
                     "build_sionna_rt_cache.py");
-    NS_LOG_UNCOND("[SionnaLookup] loading cache from " << m_cacheFile);
+    NS_LOG_UNCOND("[SionnaLookup] loading cache from " << (path.empty()?m_cacheFile:path));
 
     auto tImportStart = std::chrono::steady_clock::now();
     py::module_ h5py = py::module_::import("h5py");
     auto tAfterH5py = std::chrono::steady_clock::now();
     py::module_ np = py::module_::import("numpy");
     auto tAfterNumpy = std::chrono::steady_clock::now();
-    py::object hf = h5py.attr("File")(m_cacheFile, "r");
+    py::object hf = h5py.attr("File")(path.empty()?m_cacheFile:path, "r");
     auto tAfterOpen = std::chrono::steady_clock::now();
     NS_LOG_UNCOND(
         "[SionnaLookup] PERF import h5py="
@@ -152,6 +217,7 @@ SionnaLookupChannelModel::LoadCache() const
     {
         auto tGroupStart = std::chrono::steady_clock::now();
         std::string gnbName = py::str(item);
+        if(!onlyCell.empty() && gnbName!=onlyCell)continue;
         py::object group = hf[py::str(gnbName)];
 
         GnbCacheEntry entry;
@@ -230,7 +296,7 @@ SionnaLookupChannelModel::LoadCache() const
                                                        tGroupStart)
                                                        .count()
                                                 << "s)");
-        m_gnbCache[gnbName] = std::move(entry);
+        m_gnbCache[gnbName] = std::make_shared<GnbCacheEntry>(std::move(entry));
     }
 
     NS_ABORT_MSG_IF(m_gnbCache.empty(), "SionnaLookupChannelModel: cache file has no gNB groups: "
@@ -243,10 +309,10 @@ SionnaLookupChannelModel::FindGnbByPosition(const Vector& pos) const
     constexpr double kTolerance = 0.05; // meters
     for (const auto& [name, entry] : m_gnbCache)
     {
-        double d = CalculateDistance(pos, entry.position);
+        double d = CalculateDistance(pos, entry->position);
         if (d < kTolerance)
         {
-            return &entry;
+            return entry.get();
         }
     }
     return nullptr;

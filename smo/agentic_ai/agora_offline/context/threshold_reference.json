@@ -1,0 +1,68 @@
+{
+    "partition":  "train",
+    "seconds_per_run":  900,
+    "source":  "analysis/kpi_policy_20261013/distributions.json",
+    "runs":  720,
+    "distributions":  [
+                          {
+                              "horizon_s":  90,
+                              "partition":  "train",
+                              "cell":  "network",
+                              "metric":  "network_rlf_count",
+                              "n":  7200,
+                              "zero_fraction":  0.4913888888888889,
+                              "q05":  0.0,
+                              "q25":  0.0,
+                              "q50":  1.0,
+                              "q75":  2.0,
+                              "q80":  2.0,
+                              "q90":  3.0,
+                              "q95":  4.0
+                          },
+                          {
+                              "horizon_s":  90,
+                              "partition":  "train",
+                              "cell":  "network",
+                              "metric":  "network_pp_per_attempt_pct",
+                              "n":  7200,
+                              "zero_fraction":  0.06152777777777778,
+                              "q05":  0.0,
+                              "q25":  3.875968992248062,
+                              "q50":  7.718120805369128,
+                              "q75":  13.333333333333334,
+                              "q80":  15.0,
+                              "q90":  20.438359478969232,
+                              "q95":  30.0
+                          },
+                          {
+                              "horizon_s":  180,
+                              "partition":  "train",
+                              "cell":  "network",
+                              "metric":  "network_rlf_count",
+                              "n":  3600,
+                              "zero_fraction":  0.3225,
+                              "q05":  0.0,
+                              "q25":  0.0,
+                              "q50":  1.0,
+                              "q75":  3.0,
+                              "q80":  4.0,
+                              "q90":  6.0,
+                              "q95":  8.0
+                          },
+                          {
+                              "horizon_s":  180,
+                              "partition":  "train",
+                              "cell":  "network",
+                              "metric":  "network_pp_per_attempt_pct",
+                              "n":  3600,
+                              "zero_fraction":  0.024166666666666666,
+                              "q05":  0.7872471823375019,
+                              "q25":  4.155757111521186,
+                              "q50":  7.6923076923076925,
+                              "q75":  13.112982472716965,
+                              "q80":  14.639396608676504,
+                              "q90":  19.84187568157034,
+                              "q95":  29.650677630577114
+                          }
+                      ]
+}

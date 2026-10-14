@@ -90,3 +90,12 @@ smo/agentic_ai/mongodb/downloads/
 smo/agentic_ai/mongodb/standalone-data/
 smo/agentic_ai/mongodb/logs/
 smo/agentic_ai/mongodb/run/
+
+
+# AGORA runtime logs, SQLite state, simulation outputs, and migration backups.
+/experiments/agora_runtime/
+
+# Replay observations stay local; checkpoint/manifest/context remain in Git.
+# Export/import with scripts/agora_replay.py for another checkout.
+/smo/agentic_ai/agora_offline/runtime/assets/runs/*.npz
+/smo/agentic_ai/agora_offline/runtime/assets_v16/runs/*.npz

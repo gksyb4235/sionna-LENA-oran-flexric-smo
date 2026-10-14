@@ -1,6 +1,9 @@
-# Use the following to delete tracked source files and replace them with LF endings
-# git ls-files -z | xargs -0 rm
-# git reset --hard
-
-# Force LF endings to text files
+# Normalize source text on both Windows and WSL.
 * text=auto eol=lf
+
+# Model, replay, and scientific artifacts must remain byte-for-byte identical.
+*.pt binary
+*.npz binary
+*.h5 binary
+*.png binary
+*.pdf binary

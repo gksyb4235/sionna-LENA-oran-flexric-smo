@@ -54,3 +54,6 @@ target_link_libraries(orange_xapp_energy_saving_with_LB
 
 
 
+
+add_executable(xapp_agora_ctrl xapp_agora_ctrl.c)
+target_link_libraries(xapp_agora_ctrl PUBLIC e42_xapp pthread sctp dl)

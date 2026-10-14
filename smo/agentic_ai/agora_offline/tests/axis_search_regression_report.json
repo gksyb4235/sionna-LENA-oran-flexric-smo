@@ -1,0 +1,160 @@
+{
+  "before_session_id": "9766403f3de2486090921d2e0164f081",
+  "after_session_id": "50dd980dc6ba44f8b4bc3ce2c806e796",
+  "session_url": "http://127.0.0.1:18081/?session=50dd980dc6ba44f8b4bc3ce2c806e796",
+  "identical_user_request": true,
+  "request": {
+    "prompt": "최근 180초 관측 데이터를 기준으로, Cell5G의 TxP를 43 dBm에서 33 dBm으로 낮추고 180초간 유지하려고 합니다. 먼저 요청한 설정 그대로 평가하고, 충돌이 있으면 적용 시점·제어 강도·대상 셀 대안과 그 조합을 비교해 안전한 실행안을 제안해 주세요.",
+    "run_id": "gnn_0130",
+    "issue_time_s": 180,
+    "mode": "llm",
+    "horizon_s": 180,
+    "intent_override": null
+  },
+  "before": {
+    "status": "no_feasible_candidate",
+    "batches": 3,
+    "candidate_count": 14,
+    "dag_relation_counts": [
+      3
+    ]
+  },
+  "after": {
+    "status": "recommended",
+    "batches": 2,
+    "candidate_count": 15,
+    "batch_statistics": [
+      {
+        "requested_count": 1,
+        "evaluated_count": 1,
+        "invalid_count": 0,
+        "feasible_count": 0,
+        "baseline_count": 1
+      },
+      {
+        "requested_count": 14,
+        "evaluated_count": 13,
+        "invalid_count": 1,
+        "feasible_count": 3,
+        "baseline_count": 4
+      }
+    ],
+    "search_coverage": {
+      "axes": {
+        "time": {
+          "status": "complete",
+          "planned": 3,
+          "evaluated": 3,
+          "feasible": 0,
+          "reason": null
+        },
+        "intensity": {
+          "status": "complete",
+          "planned": 9,
+          "evaluated": 9,
+          "feasible": 3,
+          "reason": null
+        },
+        "cell": {
+          "status": "complete",
+          "planned": 1,
+          "evaluated": 1,
+          "feasible": 0,
+          "reason": null
+        }
+      },
+      "cell_targets": [
+        {
+          "source": "txp_5g",
+          "target": "txp_4g1",
+          "current_value": 37.0,
+          "status": "evaluated",
+          "proposed_value": 30.0
+        },
+        {
+          "source": "txp_5g",
+          "target": "txp_4g2",
+          "current_value": 30.0,
+          "status": "blocked",
+          "reason": "Target is already at the supported bound in the requested direction"
+        }
+      ],
+      "independent_axes_complete": true,
+      "combination_candidates": 54,
+      "combinations_evaluated": 0,
+      "next_stage": null,
+      "stop_allowed": true,
+      "stop_reason": "goal_met_after_all_axes_checked",
+      "scope": "Trained control values plus weaker integer-dBm TxP values when interpolation is enabled. Each compound-request alternative weakens or relocates one control while holding the others as requested; each is combined with supported delays. This finite grid does not exhaust joint changes to multiple controls or all continuous values.",
+      "execution": "All three applicable axes share one vectorized GNN batch when they fit the 48-candidate limit"
+    },
+    "mitigation_context_provenance": {
+      "dag_features": [
+        "txp_4g1",
+        "txp_5g"
+      ],
+      "dag_relations": 30,
+      "source_event_sequences": [
+        480,
+        929,
+        931
+      ],
+      "sha256": "e18acdc8a0f8b0b0279b5fe5d05fe7645821adb0e13b847ec39d0052e5e8655c"
+    },
+    "selected_changes": {
+      "txp_5g": 40.0
+    },
+    "delay_s": 0,
+    "horizon_s": 180,
+    "predicted_total_power_w": 459.73229169327726,
+    "keep_total_power_w": 504.15868659135117,
+    "goodput_5g_mbps": 14.963697665524705,
+    "goodput_5g_limit": 14.182577777854851,
+    "all_expectations_met": true,
+    "applied": false,
+    "ns3_validated": false,
+    "live_llm_roles": [
+      "analyst",
+      "conflict",
+      "deployment",
+      "intent",
+      "mitigation"
+    ],
+    "errors": []
+  },
+  "unit_integration_tests": {
+    "passed": true,
+    "count": 27,
+    "external_llm_calls": 0
+  },
+  "browser": {
+    "passed": true,
+    "checks": [
+      "100 held-out test runs loaded",
+      "54-node interactive graph",
+      "stylesheet loaded",
+      "real GNN original and alternative candidates rendered",
+      "actual tool request/response JSON visible",
+      "actual selected forecast meets goals and guards; export remains unapplied",
+      "all three search axes, blocked cell bound and actual scoped DAG handoff visible",
+      "first forecast contains exactly one request candidate",
+      "five editable agent prompt tabs",
+      "completed real LLM session reopens without new inference",
+      "mobile viewport has no page overflow",
+      "no browser runtime exceptions"
+    ],
+    "session_id": "d6ac7a8bb7fc4d3581939420fde59fb8",
+    "archived_live_session_id": "50dd980dc6ba44f8b4bc3ce2c806e796",
+    "decision": "recommended",
+    "selected": {
+      "txp_5g": 40
+    },
+    "external_llm_calls": 0
+  },
+  "limitations": [
+    "Finite candidate coverage does not prove global infeasibility or globally optimal continuous controls.",
+    "Compound actions weaken or relocate one control at a time, then combine with delay; joint control combinations are not exhaustive.",
+    "DAG is scoped agent context, not GNN input or a switched-action causal certificate.",
+    "Forecast-based recommendation requires subsequent branched ns3 validation."
+  ]
+}

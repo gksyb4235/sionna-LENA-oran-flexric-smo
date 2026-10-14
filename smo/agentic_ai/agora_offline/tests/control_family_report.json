@@ -1,0 +1,214 @@
+{
+  "mode": "deterministic",
+  "run_id": "gnn_0130",
+  "issue_time_s": 180,
+  "checkpoint_sha256": "b9fc9cbdb2b1245948428386d52969cc93537410e54d6c161b0a471ea0d9c324",
+  "cases": [
+    {
+      "family": "RET",
+      "control": "ret_5g",
+      "horizon_s": 90,
+      "current_parameters": {
+        "txp_5g": 43.0,
+        "txp_4g1": 37.0,
+        "txp_4g2": 30.0,
+        "ret_5g": 9.0,
+        "ret_4g1": 3.0,
+        "ret_4g2": 9.0,
+        "cio_5g": 9.0,
+        "cio_4g1": 1.0,
+        "cio_4g2": 0.0,
+        "ttt_ms": 128.0,
+        "hys_db": 4.0
+      },
+      "request": {
+        "mode": "deterministic",
+        "run_id": "gnn_0130",
+        "issue_time_s": 180,
+        "horizon_s": 90,
+        "prompt": "Cell 5G RET 9.0 -> 3.0 for 90 seconds"
+      },
+      "requested_value": 3.0,
+      "session_id": "6804fe53594a401ab0c656c41cafa75c",
+      "session_status": "completed",
+      "decision_status": "recommended",
+      "original_first_batch_candidate_count": 1,
+      "batch_candidate_counts": [
+        1
+      ],
+      "total_candidate_count": 1,
+      "original_status": "evaluated",
+      "original_conflict_status": "none",
+      "selected_changes": {
+        "ret_5g": 3.0
+      },
+      "selected_delay_s": 0,
+      "errors": [],
+      "tools": [
+        "get_network_state",
+        "estimate_batch"
+      ],
+      "applied": false,
+      "ns3_validated": false,
+      "elapsed_s": 0.0788021589978598
+    },
+    {
+      "family": "CIO",
+      "control": "cio_5g",
+      "horizon_s": 180,
+      "current_parameters": {
+        "txp_5g": 43.0,
+        "txp_4g1": 37.0,
+        "txp_4g2": 30.0,
+        "ret_5g": 9.0,
+        "ret_4g1": 3.0,
+        "ret_4g2": 9.0,
+        "cio_5g": 9.0,
+        "cio_4g1": 1.0,
+        "cio_4g2": 0.0,
+        "ttt_ms": 128.0,
+        "hys_db": 4.0
+      },
+      "request": {
+        "mode": "deterministic",
+        "run_id": "gnn_0130",
+        "issue_time_s": 180,
+        "horizon_s": 180,
+        "prompt": "Cell 5G CIO 9.0 -> 5.0 for 180 seconds"
+      },
+      "requested_value": 5.0,
+      "session_id": "df74e31fb3bc4dffa5cec089386612a6",
+      "session_status": "completed",
+      "decision_status": "recommended",
+      "original_first_batch_candidate_count": 1,
+      "batch_candidate_counts": [
+        1
+      ],
+      "total_candidate_count": 1,
+      "original_status": "evaluated",
+      "original_conflict_status": "none",
+      "selected_changes": {
+        "cio_5g": 5.0
+      },
+      "selected_delay_s": 0,
+      "errors": [],
+      "tools": [
+        "get_network_state",
+        "estimate_batch"
+      ],
+      "applied": false,
+      "ns3_validated": false,
+      "elapsed_s": 0.049776258994825184
+    },
+    {
+      "family": "TTT",
+      "control": "ttt_ms",
+      "horizon_s": 90,
+      "current_parameters": {
+        "txp_5g": 43.0,
+        "txp_4g1": 37.0,
+        "txp_4g2": 30.0,
+        "ret_5g": 9.0,
+        "ret_4g1": 3.0,
+        "ret_4g2": 9.0,
+        "cio_5g": 9.0,
+        "cio_4g1": 1.0,
+        "cio_4g2": 0.0,
+        "ttt_ms": 128.0,
+        "hys_db": 4.0
+      },
+      "request": {
+        "mode": "deterministic",
+        "run_id": "gnn_0130",
+        "issue_time_s": 180,
+        "horizon_s": 90,
+        "prompt": "Shared TTT 128.0 -> 720.0 for 90 seconds"
+      },
+      "requested_value": 720.0,
+      "session_id": "7fb11ed50d5446dbac151a2c4b0f12df",
+      "session_status": "completed",
+      "decision_status": "recommended",
+      "original_first_batch_candidate_count": 1,
+      "batch_candidate_counts": [
+        1,
+        6
+      ],
+      "total_candidate_count": 7,
+      "original_status": "evaluated",
+      "original_conflict_status": "constraint_conflict",
+      "selected_changes": {
+        "ttt_ms": 340.0
+      },
+      "selected_delay_s": 0,
+      "errors": [],
+      "tools": [
+        "get_network_state",
+        "estimate_batch",
+        "Analyze",
+        "lookup_context",
+        "estimate_batch"
+      ],
+      "applied": false,
+      "ns3_validated": false,
+      "elapsed_s": 0.12146635599492583
+    },
+    {
+      "family": "HYS",
+      "control": "hys_db",
+      "horizon_s": 180,
+      "current_parameters": {
+        "txp_5g": 43.0,
+        "txp_4g1": 37.0,
+        "txp_4g2": 30.0,
+        "ret_5g": 9.0,
+        "ret_4g1": 3.0,
+        "ret_4g2": 9.0,
+        "cio_5g": 9.0,
+        "cio_4g1": 1.0,
+        "cio_4g2": 0.0,
+        "ttt_ms": 128.0,
+        "hys_db": 4.0
+      },
+      "request": {
+        "mode": "deterministic",
+        "run_id": "gnn_0130",
+        "issue_time_s": 180,
+        "horizon_s": 180,
+        "prompt": "Shared HYS 4.0 -> 0.5 for 180 seconds"
+      },
+      "requested_value": 0.5,
+      "session_id": "7f5d0789db9d43df9f9c25d731f5dda3",
+      "session_status": "completed",
+      "decision_status": "partial_goal",
+      "original_first_batch_candidate_count": 1,
+      "batch_candidate_counts": [
+        1,
+        7,
+        8
+      ],
+      "total_candidate_count": 16,
+      "original_status": "evaluated",
+      "original_conflict_status": "constraint_conflict",
+      "selected_changes": {
+        "hys_db": 3.5
+      },
+      "selected_delay_s": 0,
+      "errors": [],
+      "tools": [
+        "get_network_state",
+        "estimate_batch",
+        "Analyze",
+        "lookup_context",
+        "estimate_batch",
+        "estimate_batch"
+      ],
+      "applied": false,
+      "ns3_validated": false,
+      "elapsed_s": 0.18702432500140276
+    }
+  ],
+  "external_llm_calls": 0,
+  "all_completed": true,
+  "all_original_first_batches_single": true,
+  "invariant_failures": []
+}

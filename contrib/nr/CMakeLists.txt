@@ -62,6 +62,7 @@ set(source_files
     helper/nr-bearer-stats-simple.cc
     helper/nr-channel-helper.cc
     helper/nr-epc-helper.cc
+    helper/agora-ric-controller.cc
     helper/nr-helper.cc
     helper/nr-mac-rx-trace.cc
     helper/nr-mac-scheduling-stats.cc
@@ -252,6 +253,7 @@ set(header_files
     helper/nr-bearer-stats-simple.h
     helper/nr-channel-helper.h
     helper/nr-epc-helper.h
+    helper/agora-ric-controller.h
     helper/nr-helper.h
     helper/nr-mac-rx-trace.h
     helper/nr-mac-scheduling-stats.h

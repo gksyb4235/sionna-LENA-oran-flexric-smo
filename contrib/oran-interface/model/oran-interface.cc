@@ -431,7 +431,12 @@ void E2Termination::DoStart ()
                                  << m_plmnId);
 
   // char* argv [] = {nullptr, &second [0], &third [0], &fourth[0], &fifth[0],&sixth[0]};
-  m_e2sim->run_loop (m_ricAddress, m_ricPort, m_clientPort, m_gnbId, m_plmnId);
+  // e2sim copies exactly four bytes into the gNB BIT STRING. Passing a short
+  // decimal string reads beyond its terminator and produces unstable node IDs.
+  const uint32_t numericId = static_cast<uint32_t>(std::stoul(m_gnbId));
+  std::string encodedId(4, '\0');
+  for (unsigned i=0;i<4;++i) encodedId[i]=static_cast<char>((numericId >> (24-8*i)) & 0xff);
+  m_e2sim->run_loop (m_ricAddress, m_ricPort, m_clientPort, encodedId, m_plmnId);
 }
 
 E2Termination::~E2Termination ()

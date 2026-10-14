@@ -1,3 +1,4 @@
+#include <limits>
 // Copyright (c) 2011 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 // Copyright (c) 2018 Fraunhofer ESK : RLF extensions
 //
@@ -2459,6 +2460,32 @@ NrGnbRrc::GetUeMap() const
 {
     NS_LOG_FUNCTION(this);
     return m_ueMap;
+}
+
+std::pair<double,double>
+NrGnbRrc::GetA3HandoverConfig() const
+{
+    for (const auto& row:m_ueMeasConfig.reportConfigToAddModList)
+    {
+        const auto& config=row.reportConfigEutra;
+        if(config.eventId == NrRrcSap::ReportConfigEutra::EVENT_A3)
+            return {config.timeToTrigger,config.hysteresis/2.0};
+    }
+    return {std::numeric_limits<double>::quiet_NaN(),std::numeric_limits<double>::quiet_NaN()};
+}
+
+void
+NrGnbRrc::UpdateA3HandoverConfig(double tttMs,double hysteresisDb)
+{
+    for(auto& row:m_ueMeasConfig.reportConfigToAddModList)
+    {
+        auto& config=row.reportConfigEutra;
+        if(config.eventId != NrRrcSap::ReportConfigEutra::EVENT_A3)continue;
+        config.timeToTrigger=static_cast<uint16_t>(tttMs);
+        config.hysteresis=static_cast<uint8_t>(std::lround(hysteresisDb*2));
+        config.a3Offset=0;
+    }
+    for(auto& [rnti,manager]:m_ueMap)manager->ScheduleRrcConnectionReconfiguration();
 }
 
 std::vector<uint8_t>

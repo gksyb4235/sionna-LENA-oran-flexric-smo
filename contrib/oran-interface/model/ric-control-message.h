@@ -84,11 +84,13 @@ namespace ns3 {
     RANfunctionID_t m_ranFunctionId;
     RICrequestID_t m_ricRequestId;
     RICcallProcessID_t m_ricCallProcessId;
-    E2SM_RC_ControlHeader_Format1_t *m_e2SmRcControlHeaderFormat1;
-    E2SM_RC_ControlMessage_Format1 *m_e2SmRcControlMessageFormat1;
+    E2SM_RC_ControlHeader_Format1_t *m_e2SmRcControlHeaderFormat1{nullptr};
+    E2SM_RC_ControlMessage_Format1 *m_e2SmRcControlMessageFormat1{nullptr};
     std::string GetSecondaryCellIdHO ();
     uint16_t GetTargetCell() const;
     RetControl GetRetControl() const;
+    /** Decode the local AGORA style-401/action-1 payload. */
+    std::string GetAgoraPayload() const;
   private:
     /**
     * Decodes the RIC Control message .

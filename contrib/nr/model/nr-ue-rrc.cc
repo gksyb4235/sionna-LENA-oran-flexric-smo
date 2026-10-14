@@ -604,6 +604,17 @@ NrUeRrc::GetPrimaryDlIndex() const
 void
 NrUeRrc::SetCellIndividualOffset(uint16_t cellId, double offsetDb)
 {
+    // A changed A3 offset invalidates pending triggers evaluated under the old offset.
+    if (std::abs(GetCellIndividualOffset(cellId)-offsetDb)>1e-9)
+    {
+        for (const auto& [id,meas]:m_varMeasConfig.measIdList)
+        {
+            auto config=m_varMeasConfig.reportConfigList.find(meas.reportConfigId);
+            if(config!=m_varMeasConfig.reportConfigList.end() &&
+               config->second.reportConfigEutra.eventId==NrRrcSap::ReportConfigEutra::EVENT_A3)
+                VarMeasReportListClear(id);
+        }
+    }
     NS_LOG_FUNCTION(this << cellId << offsetDb);
     if (offsetDb == 0.0)
     {

@@ -1,32 +1,38 @@
-# InfluxDB + Grafana only -- no orchestration/SSH service like the old
-# ns-O-RAN-flexric/mmwave-LENA-oran/GUI/docker-compose.yml, since this
-# project's ns-3 process runs locally and pushes KPI data directly (see
-# scratch/influx_writer.py) rather than being remote-controlled over SSH.
-#
-# Reuses the same images/ports/provisioning pattern as that older stack so
-# muscle memory (and the influx line-protocol schema) carries over.
-
+# Canonical local monitoring stack. Existing named volumes are preserved.
 services:
   influxdb:
     image: influxdb:1.8-alpine
+    restart: unless-stopped
     env_file: configuration.env
     ports:
       - '127.0.0.1:8086:8086'
     volumes:
       - influxdb_data:/var/lib/influxdb
-
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://localhost:8086/ping]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
   grafana:
     image: grafana/grafana:10.4.2
+    restart: unless-stopped
     depends_on:
-      - influxdb
+      influxdb:
+        condition: service_healthy
     env_file: configuration.env
     ports:
       - '127.0.0.1:3000:3000'
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning/:/etc/grafana/provisioning/
-      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
-
+      - ./grafana/provisioning/:/etc/grafana/provisioning/:ro
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/:ro
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://localhost:3000/api/health]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
 volumes:
   influxdb_data: {}
   grafana_data: {}

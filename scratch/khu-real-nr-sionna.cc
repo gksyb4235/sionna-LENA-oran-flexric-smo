@@ -1,3 +1,4 @@
+#include "ns3/agora-ric-controller.h"
 // Copyright (c) 2019 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 //
 // SPDX-License-Identifier: GPL-2.0-only
@@ -637,6 +638,8 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
 
         double retTiltDeg = 0.0;
         double retBearingDeg = 0.0;
+        const auto liveHo=DynamicCast<NrGnbNetDevice>(cell.gnbDev)->GetRrc()->GetA3HandoverConfig();
+        const double liveTttMs=liveHo.first, liveHysteresisDb=liveHo.second;
         double liveTxPowerDbm = cell.txPowerDbm;
         if (cell.gnbDev)
         {
@@ -676,8 +679,8 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                    liveTxPowerDbm,
                                                    retTiltDeg,
                                                    retBearingDeg,
-                                                   g_handoverTtTMs,
-                                                   g_handoverHysteresisDb,
+                                                   liveTttMs,
+                                                   liveHysteresisDb,
                                                    static_cast<int>(numUes),
                                                    avgRsrp,
                                                    cell.hoInCount,
@@ -1162,6 +1165,15 @@ main(int argc, char* argv[])
     endpointNodes.Add(remoteHost);
     endpointNodes.Add(ueNodes);
     Ptr<ns3::FlowMonitor> monitor = flowmonHelper.Install(endpointNodes);
+
+    std::map<std::string, Ptr<NrGnbNetDevice>> agoraCells;
+    for(uint32_t i=0;i<gnbNetDev.GetN();++i)
+    {
+        const std::string name=gnbPositions[i].externalId;
+        const std::string label=name=="gNB_5G"?"5g":name=="gNB_4G_1"?"4g1":name=="gNB_4G_2"?"4g2":"cell"+std::to_string(i);
+        agoraCells[label]=DynamicCast<NrGnbNetDevice>(gnbNetDev.Get(i));
+    }
+    AgoraRicController::InstallFromEnvironment(agoraCells,simTime.GetSeconds());
 
     Simulator::Stop(simTime);
     Simulator::Run();

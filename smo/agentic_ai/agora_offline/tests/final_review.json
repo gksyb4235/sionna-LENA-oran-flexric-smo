@@ -1,0 +1,111 @@
+{
+  "created_utc": "2026-10-13T04:25:32.254380+00:00",
+  "scope": "Read-only source audit, isolated local TestClient and synthetic HTTP transport; no external API calls",
+  "checks": [
+    {
+      "name": "settings_roundtrip",
+      "passed": true,
+      "detail": "Prompt, research policy and model ID survived API write/read and disk reload"
+    },
+    {
+      "name": "no_persisted_credentials",
+      "passed": true,
+      "detail": "Only model ID saved; no credential read or exposed by this review"
+    },
+    {
+      "name": "invalid_role_rejected",
+      "passed": true,
+      "detail": 422
+    },
+    {
+      "name": "invalid_policy_minimum_goodput_retention",
+      "passed": true,
+      "detail": 422
+    },
+    {
+      "name": "invalid_policy_rlf_allowance_per_90s",
+      "passed": true,
+      "detail": 422
+    },
+    {
+      "name": "invalid_policy_allow_continuous_txp",
+      "passed": true,
+      "detail": 422
+    },
+    {
+      "name": "running_session_cancellation",
+      "passed": true,
+      "detail": {
+        "status": "cancelled",
+        "event_types": [
+          "status",
+          "tool_call",
+          "done"
+        ]
+      }
+    },
+    {
+      "name": "cancel_prevents_forecast_export",
+      "passed": true,
+      "detail": "No forecast invoked or execution plan produced after cancellation"
+    },
+    {
+      "name": "cancelled_sse_terminal",
+      "passed": true,
+      "detail": "SSE emits terminal done and closes"
+    },
+    {
+      "name": "cancelled_session_archive_reload",
+      "passed": true,
+      "detail": "Saved session readable after in-memory entry removed"
+    },
+    {
+      "name": "opaque_continuation_preserved",
+      "passed": true,
+      "detail": "Opaque output preserved and correctly matched tool result passed back"
+    },
+    {
+      "name": "opaque_not_ui_events",
+      "passed": true,
+      "detail": "Opaque reasoning payload never emitted to UI or SSE"
+    },
+    {
+      "name": "intent_repair_feedback",
+      "passed": true,
+      "detail": "Malformed KPI expectation returns concrete tool validation error; corrected second intent is accepted"
+    },
+    {
+      "name": "second_round_invariant",
+      "passed": true,
+      "detail": {
+        "batches": 3,
+        "mitigation_calls": 3,
+        "status": "completed"
+      }
+    },
+    {
+      "name": "original_request_first_single_candidate",
+      "passed": true,
+      "detail": "Exactly one requested plan is evaluated before alternatives"
+    },
+    {
+      "name": "top_two_tool_compression",
+      "passed": true,
+      "detail": "Full batches remain in audit, while model-facing finalist summaries return at most two"
+    },
+    {
+      "name": "no_opaque_items_in_session_logs",
+      "passed": true,
+      "detail": "Synthetic opaque continuation payload does not enter session state or persisted events"
+    }
+  ],
+  "material_findings": [],
+  "source_sha256": {
+    "provider.py": "413b1e0252b4f685ee79288fc71ad8e7e75550d12259e41657a825336c4f807f",
+    "orchestrator.py": "e91cea6549612d89b102f1c0ca53f043bac4815b912180572364d89c1fae8094",
+    "settings.py": "7365f9cbbda79166e951bef55751483aff6a5434121236d472b54f29ccb1f806",
+    "server.py": "10a5d7ce41063d435a14714b88c149017858ea39db5e94c670950637ffeef8ff",
+    "contracts.py": "9101ba88aede85d94c0d9f7a5d0c20ad2065440630de73bd7e985e93b83bf5da"
+  },
+  "provider_stateless_note": "Parent confirmed successful real Responses continuation and current official documentation: encrypted content is returned by default with store=false."
+}

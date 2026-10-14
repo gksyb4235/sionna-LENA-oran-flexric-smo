@@ -22,6 +22,11 @@ Sionna RT는 별도 서버가 아니라 pybind11을 통해 ns-3 프로세스 안
 현재 `scratch/khu-real-nr-sionna.cc`에서 GUI, E2 접속, KPI 저장,
 A3 RSRP handover 및 TTT/HYS sweep을 함께 사용할 수 있습니다.
 
+### AGORA: GNN 추천안의 실제 RIC 적용
+
+[AGORA 실행 안내](AGORA.md)에 UI 후보 선택, FlexRIC/E2 제어, 셀별 RET 캐시,
+모니터링과 검증 범위를 정리했습니다. 통합 진입점은 `python scripts/agora.py up`입니다.
+
 ### 재현 범위와 고정 버전
 
 검증 기준은 Ubuntu 24.04 WSL2, Python 3.12, GCC 13입니다. 현재 이 문서의

@@ -1,0 +1,149 @@
+{
+  "version": "app5-v16",
+  "partition": "train",
+  "runs": 720,
+  "windowing": "Origins 30..720 seconds at 10-second stride; overlapping native 90/180s windows; includes short-history origins",
+  "provenance": "Research reference percentiles, not measured deployment SLAs or predictive confidence bounds",
+  "distributions": [
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "network_rlf_count",
+      "n": 50400,
+      "q10": 0.0,
+      "q50": 1.0,
+      "q75": 2.0,
+      "q90": 3.0
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "network_pp_per_success_pct",
+      "n": 50400,
+      "q10": 1.4285714626312256,
+      "q50": 7.7272725105285645,
+      "q75": 13.138686180114746,
+      "q90": 20.056575775146484
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "network_pp_per_attempt_pct",
+      "n": 50400,
+      "q10": 1.4285714626312256,
+      "q50": 7.72357702255249,
+      "q75": 13.138686180114746,
+      "q90": 20.05313491821289
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "min_cell_rsrp_p10_dbm",
+      "n": 50399,
+      "q10": -100.0,
+      "q50": -91.0,
+      "q75": -86.0,
+      "q90": -83.0
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "max_cell_rsrp_gap_db",
+      "n": 50399,
+      "q10": 8.155390739440918,
+      "q50": 11.437294006347656,
+      "q75": 19.44931411743164,
+      "q90": 21.62230682373047
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "max_cell_bler_pct",
+      "n": 50399,
+      "q10": 13.03770637512207,
+      "q50": 19.719928741455078,
+      "q75": 22.513031005859375,
+      "q90": 25.67051124572754
+    },
+    {
+      "horizon_s": 90,
+      "cell": "network",
+      "metric": "max_cell_delay_over_100ms_pct",
+      "n": 50399,
+      "q10": 0.25943243503570557,
+      "q50": 2.7873454093933105,
+      "q75": 8.013872146606445,
+      "q90": 15.602432250976562
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "network_rlf_count",
+      "n": 50400,
+      "q10": 0.0,
+      "q50": 2.0,
+      "q75": 4.0,
+      "q90": 6.0
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "network_pp_per_success_pct",
+      "n": 50400,
+      "q10": 1.6631522178649902,
+      "q50": 7.664233684539795,
+      "q75": 12.98259162902832,
+      "q90": 19.672130584716797
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "network_pp_per_attempt_pct",
+      "n": 50400,
+      "q10": 1.662642002105713,
+      "q50": 7.662835121154785,
+      "q75": 12.980769157409668,
+      "q90": 19.672130584716797
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "min_cell_rsrp_p10_dbm",
+      "n": 50400,
+      "q10": -100.0,
+      "q50": -92.0,
+      "q75": -86.5999984741211,
+      "q90": -83.0
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "max_cell_rsrp_gap_db",
+      "n": 50400,
+      "q10": 8.197937965393066,
+      "q50": 11.666641235351562,
+      "q75": 19.60647964477539,
+      "q90": 21.563438415527344
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "max_cell_bler_pct",
+      "n": 50400,
+      "q10": 14.617314338684082,
+      "q50": 19.826807022094727,
+      "q75": 22.501750946044922,
+      "q90": 25.389801025390625
+    },
+    {
+      "horizon_s": 180,
+      "cell": "network",
+      "metric": "max_cell_delay_over_100ms_pct",
+      "n": 50400,
+      "q10": 0.3975891172885895,
+      "q50": 3.4737069606781006,
+      "q75": 8.409090042114258,
+      "q90": 15.099519729614258
+    }
+  ]
+}

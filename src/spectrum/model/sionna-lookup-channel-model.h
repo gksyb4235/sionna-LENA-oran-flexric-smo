@@ -11,6 +11,7 @@
 
 #include <complex.h>
 #include <map>
+#include <memory>
 #include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 #include <vector>
@@ -41,12 +42,8 @@ class MobilityModel;
  * scene/PathSolver calls per query.
  *
  * Caveats inherent to this approach (by design, not oversights):
- *  - Only valid for the fixed bearing/tilt baked into the cache at build
- *    time (see gnbs-ret.csv at cache-build time). A live RET tilt/bearing
- *    change (NrGnbNetDevice::ApplyRetControl) is NOT reflected here -- the
- *    cache would need to be rebuilt per tilt value swept, which is a
- *    separate, larger feature (see conversation notes on tilt-sweep cache
- *    sizing) not implemented by this class.
+ *  - RET changes require PrepareRetCache/ActivateRetCache with a matching
+ *    per-cell cache. Unsupported tilt or bearing changes are not synthesized.
  *  - No Doppler modeling: ChannelParams::m_alpha/m_D are filled with zeros
  *    (no per-cluster Doppler), consistent with treating each grid cell as a
  *    static snapshot -- the same approximation SionnaRtChannelModel's own
@@ -68,6 +65,13 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
 
     void SetCacheFile(const std::string& path);
     std::string GetCacheFile() const;
+    /** Instances available to the optional simulator-side RIC controller. */
+    static std::vector<Ptr<SionnaLookupChannelModel>> GetInstances();
+    /** Load and validate a cell/tilt cache without changing the active channel. */
+    bool PrepareRetCache(const std::string& cell, double tilt, const std::string& root);
+    /** Select a prepared per-cell cache and invalidate matrices and parameters. */
+    void ActivateRetCache(const std::string& cell, double tilt);
+
 
     void SetFrequency(double f);
     double GetFrequency() const;
@@ -111,7 +115,7 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
     };
 
     void EnsureCacheLoaded() const;
-    void LoadCache() const;
+    void LoadCache(const std::string& onlyCell="", const std::string& path="") const;
 
     /// Returns the loaded gNB entry whose stored position matches `pos`
     /// within 1cm, or nullptr if `pos` isn't one of the cached gNBs.
@@ -146,7 +150,8 @@ class SionnaLookupChannelModel : public MatrixBasedChannelModel
                                           const Ptr<const MobilityModel>& aMob,
                                           const Ptr<const MobilityModel>& bMob) const;
 
-    mutable std::map<std::string, GnbCacheEntry> m_gnbCache; //!< keyed by HDF5 group (gNB) name
+    mutable std::map<std::string, std::shared_ptr<GnbCacheEntry>> m_gnbCache; //!< keyed by HDF5 group (gNB) name
+    std::map<std::pair<std::string,int>, std::shared_ptr<GnbCacheEntry>> m_retCaches;
     mutable bool m_cacheLoaded = false;
     std::string m_cacheFile;
     double m_frequency = 3.5e9;

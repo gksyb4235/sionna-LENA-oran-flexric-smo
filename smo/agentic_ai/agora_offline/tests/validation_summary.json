@@ -1,0 +1,40 @@
+{
+  "completed_utc": "2026-10-13T04:35:47.696980+00:00",
+  "ui_url": "http://127.0.0.1:18081",
+  "legacy_overview_preserved": "http://127.0.0.1:8773",
+  "live_review_url": "http://127.0.0.1:18081/?session=fd0f258f5d6c4dc490f31749b52167c1",
+  "model_checkpoint_sha256": "b9fc9cbdb2b1245948428386d52969cc93537410e54d6c161b0a471ea0d9c324",
+  "replay_runs": 1000,
+  "registered_parameters": 147284,
+  "unit_integration_tests": {
+    "tests_run": 19,
+    "failures": 0,
+    "errors": 0,
+    "passed": true
+  },
+  "independent_checks": 17,
+  "browser_checks": 11,
+  "browser_passed": true,
+  "live_llm_status": "completed",
+  "live_llm_errors": [],
+  "live_llm_roles": [
+    "analyst",
+    "conflict",
+    "deployment",
+    "intent",
+    "mitigation"
+  ],
+  "live_llm_candidate_count": 10,
+  "selected_changes": {
+    "txp_5g": 40.0
+  },
+  "applied": false,
+  "ns3_validated": false,
+  "source_deployment_hashes_matched": true,
+  "remaining_limits": [
+    "Example research guardrails; editable, not operator SLA",
+    "Only90/180s horizons and0/30/60/90s delays",
+    "In-range non-grid TxP values are unvalidated interpolation",
+    "Fixed-run replay does not establish switched-action causal effects"
+  ]
+}

@@ -949,6 +949,11 @@ class NR_EXPORT NrGnbRrc : public Object
      * @return map of RNTI to NrUeManager instances
      */
     std::map<uint16_t, Ptr<NrUeManager>> GetUeMap() const;
+    /** Read the active A3 report configuration: TTT milliseconds and hysteresis dB. */
+    std::pair<double,double> GetA3HandoverConfig() const;
+    /** Update existing A3 configs and schedule RRC reconfiguration for connected UEs. */
+    void UpdateA3HandoverConfig(double tttMs, double hysteresisDb);
+
 
     /**
      * @brief Add a new UE measurement reporting configuration

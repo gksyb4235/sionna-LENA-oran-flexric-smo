@@ -1,0 +1,143 @@
+{
+  "tool_name": "lookup_rcp_effects",
+  "description": "Retrieve scoped simulator intervention evidence. Does not execute actions. Filtered-out pairs are not proven absent.",
+  "implementation": "Load graph,details once with load_bundle(); call query(graph, details, **arguments).",
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "feature"
+    ],
+    "properties": {
+      "feature": {
+        "type": "string",
+        "enum": [
+          "txp_5g",
+          "txp_4g1",
+          "txp_4g2",
+          "cio_5g",
+          "cio_4g1",
+          "cio_4g2",
+          "ttt_ms",
+          "hys_db",
+          "ret_5g",
+          "ret_4g1",
+          "ret_4g2"
+        ]
+      },
+      "cell": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "5g",
+          "4g1",
+          "4g2",
+          null
+        ]
+      },
+      "kpi": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "enum": [
+          "goodput_mbps",
+          "prb_pct",
+          "delay_ms",
+          "loss_pct",
+          "bler_pct",
+          "rsrp_interval_mean_dbm",
+          "sinr_interval_mean_db",
+          "ho_attempts",
+          "pingpongs",
+          "rlfs",
+          "power_w",
+          "energy_eff_mbit_per_j",
+          "ue_share_pct",
+          "traffic_share_pct",
+          null
+        ]
+      },
+      "current_rcp": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "txp_5g": {
+            "type": "number"
+          },
+          "txp_4g1": {
+            "type": "number"
+          },
+          "txp_4g2": {
+            "type": "number"
+          },
+          "cio_5g": {
+            "type": "number"
+          },
+          "cio_4g1": {
+            "type": "number"
+          },
+          "cio_4g2": {
+            "type": "number"
+          },
+          "ttt_ms": {
+            "type": "number"
+          },
+          "hys_db": {
+            "type": "number"
+          },
+          "ret_5g": {
+            "type": "number"
+          },
+          "ret_4g1": {
+            "type": "number"
+          },
+          "ret_4g2": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "after": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "mode": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "duration_s": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "include_derived": {
+        "type": "boolean",
+        "default": false
+      },
+      "include_details": {
+        "type": "boolean",
+        "default": false
+      }
+    }
+  },
+  "output_notes": {
+    "applicability.status": [
+      "reference_conditions_match",
+      "out_of_scope",
+      "insufficient_context"
+    ],
+    "effects": "Reference observations, not transported estimates",
+    "units": "results[].effect_unit",
+    "evidence_ids": "results[].id"
+  }
+}

@@ -1,3 +1,5 @@
+#include "ns3/agora-ric-controller.h"
+#include "ns3/node.h"
 // Copyright (c) 2019 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 //
 // SPDX-License-Identifier: GPL-2.0-only
@@ -177,6 +179,14 @@ NrGnbNetDevice::ControlMessageReceivedCallback(E2AP_PDU_t* sub_req_pdu)
     Ptr<RicControlMessage> controlMessage = Create<RicControlMessage>(sub_req_pdu);
     NS_LOG_INFO("Request type " << controlMessage->m_requestType);
 
+    if (!controlMessage->m_e2SmRcControlHeaderFormat1) return;
+    if (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type == 401)
+    {
+        const std::string payload=controlMessage->GetAgoraPayload();
+        if (!payload.empty()) Simulator::ScheduleWithContext(GetNode()->GetId(),Seconds(0),
+                                         &AgoraRicController::Receive,payload);
+        return;
+    }
     switch (controlMessage->m_e2SmRcControlHeaderFormat1->ric_Style_Type)
     {
     case RicControlMessage::ControlMessageServiceStyle::Connected_Mode_Mobility: {
