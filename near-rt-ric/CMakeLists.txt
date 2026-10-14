@@ -32,9 +32,11 @@ set(UNITY_BUILD_BATCH_SIZE 10)
 # cmake -GNinja -DCMAKE_UNITY_BUILD=ON -DCMAKE_CXX_COMPILER=clang++-DCMAKE_CXX_FLAGS="-fuse-ld=lld -ftime-trace"
 
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON )
-# For YouCompleteMe configuration
+# For YouCompleteMe configuration; keep the link valid when relocating.
+file(RELATIVE_PATH COMPILE_COMMANDS_TARGET "${CMAKE_SOURCE_DIR}"
+  "${CMAKE_BINARY_DIR}/compile_commands.json")
 file(CREATE_LINK
-  "${CMAKE_BINARY_DIR}/compile_commands.json"
+  "${COMPILE_COMMANDS_TARGET}"
   "${CMAKE_SOURCE_DIR}/compile_commands.json"
   SYMBOLIC
 )

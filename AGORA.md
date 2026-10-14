@@ -2,6 +2,14 @@
 
 이 저장소의 AGORA 진입점은 `scripts/agora.py`입니다. 기존 데이터로 Temporal GNN·Agent 평가를 실행하고, 운영자가 선택한 후보를 실제 FlexRIC/E2 경로로 ns-3에 적용합니다.
 
+| 구성 요소 | 저장소 경로 |
+|---|---|
+| Non-RT RIC · A1 Mediator | `non-rt-ric/` |
+| Near-RT RIC · FlexRIC와 실행 xApp | `near-rt-ric/` |
+| GNN·Agent·정책/제어 모듈 | `smo/` |
+
+소스 폴더와 실행 경로는 위 이름을 사용합니다. FlexRIC의 upstream 프로젝트명·라이브러리명·설정 파일명과 `/usr/local/lib/flexric/` 시스템 설치 경로는 호환성을 유지합니다.
+
 ## 바로 실행
 
 ```bash
@@ -50,7 +58,7 @@ flowchart LR
   A[데이터 재생 · Temporal GNN · Agent] --> B[후보 3개 · 운영자 선택]
   B --> C[검증된 실행안 · 시각 · 원래 값]
   C -->|Near-RT 선택| X[실행 xApp]
-  C -->|Non-RT 선택| P[A1_Mediator_standalone 기반 Non-RT RIC]
+  C -->|Non-RT 선택| P[non-rt-ric 기반 Non-RT RIC]
   P --> RA[Energy Saving / Coverage rApp]
   RA --> X
   X --> R[저장소 내 FlexRIC Near-RT RIC]
@@ -60,7 +68,7 @@ flowchart LR
   S --> B
 ```
 
-Non-RT 경로는 기존 A1_Mediator_standalone에서 실행하는 로컬 Non-RT RIC입니다. Energy Saving·Coverage rApp이 동일한 앱 계약으로 원안을 검증한 뒤 실행 xApp으로 전달합니다. Throughput·Load Balancing·Mobility는 xApp이며 Near-RT 경로를 사용합니다. 같은 TxP/RET라도 앱 의도가 다르면 경로가 달라집니다. 학습된 GNN은 변경하지 않습니다.
+Non-RT 경로는 기존 non-rt-ric에서 실행하는 로컬 Non-RT RIC입니다. Energy Saving·Coverage rApp이 동일한 앱 계약으로 원안을 검증한 뒤 실행 xApp으로 전달합니다. Throughput·Load Balancing·Mobility는 xApp이며 Near-RT 경로를 사용합니다. 같은 TxP/RET라도 앱 의도가 다르면 경로가 달라집니다. 학습된 GNN은 변경하지 않습니다.
 
 정책 유형 401은 중첩 실행안 스키마·SQLite 영속 저장·상태 조회를 제공합니다. 실행 게이트웨이는 A1에 저장된 정책과 전달된 값의 일치를 확인합니다. 정책 ID를 재사용해 내용을 바꿀 수 없으며, 삭제 API로 이미 예약된 동작을 취소하지 않습니다. 범용 외부 O-RAN SC 플랫폼이나 완전한 A1 표준 준수 구현으로 주장하지 않습니다.
 
@@ -104,7 +112,7 @@ TTT·HYS는 모델에서 전역 파라미터 두 개이며 세 셀에 함께 적
 | `smo/non_rt_ric/` | standalone A1 정책 저장·rApp 처리 |
 | `smo/ric_control/` | RIC gateway, 제어 계약, 연결 테스트 |
 | `smo/ric_control/config/` | 실제 사용하는 FlexRIC 설정, 실행별 trace 대응표 |
-| `flexric/examples/xApp/c/ctrl/xapp_agora_ctrl.c` | 실제 E2 제어 송신 xApp |
+| `near-rt-ric/examples/xApp/c/ctrl/xapp_agora_ctrl.c` | 실제 E2 제어 송신 xApp |
 | `contrib/nr/helper/agora-ric-controller.*` | ns3 예약·적용·복원·readback |
 | `monitoring/` | InfluxDB/Grafana Compose와 dashboard |
 | `experiments/agora_runtime/runs/<실행-ID>/` | 실행 명세, status, receipts, KPI CSV |

@@ -8,7 +8,7 @@
 
 1. **최소 AIMLFW 계층** — ns-3(LENA-oran-flexric) 시뮬레이션이 생성한 `cell_kpi.csv` 결과를 3분(180초) 간격 피처로 집계하고, GNN 모델을 학습·등록·서빙하며, 예측 결과를 Agent 에게 전달하고, 성능 저하 시 재학습을 트리거한다. AIMLFW 참조 구현(Kubernetes/Kubeflow/KServe/InfluxDB/Cassandra)의 전체 스택은 도입하지 않고, 동일한 계층 분리 철학(Data/Feature ≠ Training ≠ Model Management ≠ Inference ≠ RAN Control)만 최소 구현으로 재현한다.
 2. **Agentic AI 판단 계층** — 기존 `smo/agentic_ai`(deep-agents 기반 Decomposition / Planning / Probe / Monitoring / Representative 에이전트, MongoDB Knowledge DB, Dashboard, MCP 서버) 위에 GNN 질의 능력을 추가한다. Agent 는 xApp 이 요청한 5개 파라미터(TxP, RET, CIO, HYS, TTT) 조합에 대해 GNN 을 **배치(batch)** 로 프로빙하여, (a) 임계 KPI 위반 여부 판정, (b) 파라미터 간 **간접 충돌(indirect conflict)** 탐지, (c) 900초 시뮬레이션을 5개 시간 스텝(t=0..4)으로 나눈 **시간 구간별 xApp 실행 계획** 수립을 데이터 근거 기반으로 수행한다.
-3. **A1 인터페이스 연동** — 판단 결과를 `A1_Mediator_standalone`(FastAPI, O-RAN.WG2.A1AP-R004-v04.03 부분 준수, 포트 9000)의 Policy Type / Policy Instance 로 발행하여 Near-RT RIC(FlexRIC)의 xApp 에 전달한다.
+3. **A1 인터페이스 연동** — 판단 결과를 `non-rt-ric`(FastAPI, O-RAN.WG2.A1AP-R004-v04.03 부분 준수, 포트 9000)의 Policy Type / Policy Instance 로 발행하여 Near-RT RIC(FlexRIC)의 xApp 에 전달한다.
 
 Non-RT RIC 은 SMO 내부에 위치하며, RAN 제어 권한은 Near-RT RIC/xApp(E2)에 남고 본 프레임워크는 정책(A1)과 AI 능력(AIMLFW)만 제공한다.
 
@@ -49,7 +49,7 @@ Non-RT RIC 은 SMO 내부에 위치하며, RAN 제어 권한은 Near-RT RIC/xApp
 - **Temporal_Scheduler**: Time_Step 별로 실행할 xApp_Objective 를 배정하는 구성요소.
 - **Temporal_Plan**: Time_Step 0~4 각각에 대해 xApp_Objective 와 Parameter_Set 을 배정한 계획.
 - **Policy_Manager**: Temporal_Plan 과 판정 결과를 A1 Policy Type / Policy Instance 로 변환하고 A1_Mediator 에 발행하는 Non-RT RIC 구성요소.
-- **A1_Mediator**: `A1_Mediator_standalone/A1_Mediator/app/main.py` 로 실행되는 기존 FastAPI 서비스.
+- **A1_Mediator**: `non-rt-ric/A1_Mediator/app/main.py` 로 실행되는 기존 FastAPI 서비스.
 - **Policy_Type**: A1 Policy Type. `policy_type_id`, `name`, `description`, `create_schema` 를 갖는다.
 - **Policy_Instance**: Policy_Type 의 구체 인스턴스. `data` 객체를 갖는다.
 - **Retraining_Controller**: 예측 정확도 저하를 감지하여 재학습을 트리거하는 구성요소.

@@ -19,7 +19,7 @@ def transmit(ident):
         saved = read_saved(ident)
         try:
             binding = encode(saved["plan"], live_run(saved["live_run_id"]))
-            exe = ROOT / "flexric/build/examples/xApp/c/ctrl/xapp_agora_ctrl"
+            exe = ROOT / "near-rt-ric/build/examples/xApp/c/ctrl/xapp_agora_ctrl"
             if not exe.is_file():
                 raise ValueError("Build xapp_agora_ctrl first")
             log = RUNTIME / "logs" / f"{ident}.xapp.log"

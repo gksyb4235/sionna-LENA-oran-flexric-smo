@@ -20,18 +20,18 @@ Ubuntu-compatible system, the SCTP packages are normally `libsctp-dev` and
 From the repository root, run:
 
 ```bash
-FLEXRIC_BUILD_JOBS=4 ./flexric/build-local.sh
+FLEXRIC_BUILD_JOBS=4 ./near-rt-ric/build-local.sh
 ```
 
 The script builds only the nearRT-RIC, the service models required by this
-scenario, and `xapp_energy_off_demo`. It installs the configuration and
-service-model shared libraries below `flexric/install`, so root access and a
+scenario, the energy-saving demo, the AGORA control xApp, and the KPM monitor. It installs the configuration and
+service-model shared libraries below `near-rt-ric/install`, so root access and a
 global `/usr/local` installation are not required.
 
 ## Terminal 2: nearRT-RIC
 
 ```bash
-cd /home/user/LENA-oran-flexric-smo/flexric
+cd /home/user/LENA-oran-flexric-smo/near-rt-ric
 ./build/examples/ric/nearRT-RIC \
   -c ./install/etc/flexric/flexric.conf \
   -p ./install/lib/flexric/

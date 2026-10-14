@@ -30,7 +30,9 @@ cmake --build "${flexric_build_dir}" \
     gtp_sm \
     kpm_sm \
     rc_sm \
-    xapp_energy_off_demo
+    xapp_energy_off_demo \
+    xapp_agora_ctrl \
+    xapp_kpm_moni
 
 cmake --install "${flexric_build_dir}"
 

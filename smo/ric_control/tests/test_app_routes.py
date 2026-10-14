@@ -17,7 +17,7 @@ from smo.ric_control.messages import Submission, submission_digest
 
 ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location(
-    "agora_a1_test_main", ROOT / "A1_Mediator_standalone/A1_Mediator/app/main.py"
+    "agora_a1_test_main", ROOT / "non-rt-ric/A1_Mediator/app/main.py"
 )
 mediator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mediator)

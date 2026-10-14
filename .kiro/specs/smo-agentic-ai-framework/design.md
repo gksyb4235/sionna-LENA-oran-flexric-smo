@@ -6,7 +6,7 @@
 
 1. **최소 AIMLFW 계층**: `ns-3(LENA-oran-flexric)` 시뮬레이션 결과 `cell_kpi.csv`를 3분(180초) 간격 `Feature_Record`로 집계하고, GNN 모델을 학습·등록·배치 추론하며, 예측 정확도 저하 시 재학습을 트리거한다. Kubernetes/Kubeflow/KServe/InfluxDB/Cassandra 등 AIMLFW 참조 스택은 도입하지 않고, `Data_Extractor / Feature_Store / Training_Manager / Model_Registry / Model_Storage / Inference_Service` 6개 구성요소를 로컬 프로세스로 실행되는 경량 Python(FastAPI) 서비스로 구현한다. 모든 영속 데이터는 로컬 파일 시스템(JSON Lines/파일) 또는 기존 MongoDB(Knowledge DB와 동일 인스턴스, 별도 데이터베이스)에 저장한다.
 2. **Agentic AI 판단 계층**: 기존 `smo/agentic_ai`(deep-agents 기반 Decomposition / Planning / Probe / Monitoring / Representative 에이전트, MongoDB Knowledge DB, Dashboard) 구조를 그대로 유지하고, 그 위에 신규 sub-agent인 `KPI_Advisor_Agent`를 `smo/agentic_ai/agents/kpi-advisor/`에 기존 에이전트와 동일한 5파일 구성(`agent.md`, `agent.py`, `schemas.py`, `server.py`, `pyproject.toml`)으로 추가한다. `Conflict_Analyzer`, `Temporal_Scheduler`, `Policy_Manager`는 `KPI_Advisor_Agent`가 임포트하는 라이브러리 모듈(`kpi_advisor/` 내부 패키지)로 구현하며, 새로운 오케스트레이션 계층이나 별도 런타임을 추가하지 않는다.
-3. **A1 인터페이스 연동**: `Policy_Manager`가 기존 `A1_Mediator_standalone`(FastAPI, 포트 9000, 실제 코드 확인 결과 8개 Policy_Type/Policy_Instance 엔드포인트 + 1개 healthcheck 제공)의 정책 발행 경로만을 통해 판단 결과를 Near-RT RIC(FlexRIC) xApp에 전달한다.
+3. **A1 인터페이스 연동**: `Policy_Manager`가 기존 `non-rt-ric`(FastAPI, 포트 9000, 실제 코드 확인 결과 8개 Policy_Type/Policy_Instance 엔드포인트 + 1개 healthcheck 제공)의 정책 발행 경로만을 통해 판단 결과를 Near-RT RIC(FlexRIC) xApp에 전달한다.
 
 Non-RT RIC은 SMO 내부에 위치하며, RAN 제어 권한은 Near-RT RIC/xApp(E2)에 남는다. 본 프레임워크는 정책(A1)과 AI 능력(AIMLFW)만 제공하고 RAN을 직접 제어하지 않는다.
 
@@ -17,7 +17,7 @@ Non-RT RIC은 SMO 내부에 위치하며, RAN 제어 권한은 Near-RT RIC/xApp(
 - **`cell_kpi.csv` 실제 스키마**: 헤더는 `time_s,interval_s,cell_id,cell,band,frequency_hz,bandwidth_hz,cio_bias_db,tx_power_dbm,rf_tx_power_w,ret_tilt_deg,ret_bearing_deg,ttt_ms,hysteresis_db,energy_state,num_ues,...`로 시작하며, 이후 rsrp/sinr/goodput/prb/delay/ho/energy 계열 KPI 열이 이어진다. 대상 셀은 정확히 3개: `gNB_5G`, `gNB_4G_1`, `gNB_4G_2`이며, CSV의 `cell` 열이 Glossary가 말하는 `cell_id`(문자열 식별자)에 대응한다. CSV에는 별도 정수형 `cell_id` 열(1/2/3, ns-3 내부 인덱스)도 존재하지만 이는 Feature_Record의 `cell_id` 키로 사용하지 않는다(내부 인덱스와 외부 식별자를 혼동하면 Requirement 1.1의 "정확히 1개의 Feature_Record" 불변식이 깨지므로 명시적으로 분리한다).
 - **5개 Control_Parameter는 셀별 값이다**: `cio_bias_db, tx_power_dbm, ret_tilt_deg, hysteresis_db, ttt_ms` 5개 열이 각 CSV 행(= 각 cell, 각 시각)에 이미 존재한다. `command.sh`의 CLI 인자(`--cellTxPowerDbm=gNB_5G:43,gNB_4G_1:43,gNB_4G_2:43` 형태의 `cell:value` 맵)가 실행 메타데이터의 원천이며, 셀마다 다른 값을 가질 수 있다(예: `RET_HYS_grid_test`는 셀별 RET 값이 다름). 따라서 `Parameter_Set`은 "5개 스칼라 값의 집합"이 아니라 **"대상 셀 집합 × 5개 Control_Parameter" 2차원 값의 집합**으로 모델링한다. 이는 Requirement 7.1~7.3, 11.1~11.5의 "각 대상 셀의 5개 Control_Parameter 값"이라는 문구와 정확히 일치한다.
 - **실행 메타데이터 원천**: `Data_Extractor`는 결과 디렉터리의 `command.sh`를 파싱하여 각 `--cellXxx=` 맵 인자에서 셀별 Control_Parameter 값을 추출하고, 파일 경로에 포함된 `seedNN` 패턴(예: `ue_positions_seed12.csv`, `seed12_...` 디렉터리명)에서 seed 값을 추출한다. CSV 행에도 동일 값이 매 인터벌마다 반복 기록되어 있으므로, `command.sh` 파싱이 실패하면 CSV의 해당 열 값(집계 구간 내 최빈값)으로 폴백한다. 이 폴백 규칙은 Requirement 1.5의 "실행 메타데이터에 기록된 값"이라는 요구를 다중 소스로 충족시키기 위한 설계 결정이다.
-- **A1_Mediator의 실제 스키마 제약**: `A1_Mediator_standalone/A1_Mediator/app/main.py`를 확인한 결과 `CreateSchema.validate_properties`는 각 속성의 `type`이 `"integer"` 또는 `"bool"`인 경우만 허용한다(문자열/실수 타입 불허). CIO(0.5 스텝)와 HYS(0.5 스텝)는 소수 값을 가지므로, `Policy_Manager`는 이 두 파라미터를 **10배 스케일 정수**(예: CIO 3.5dB → 35)로 인코딩하여 A1 Policy 필드에 담는다. 또한 `create_schema.properties`는 평평한(flat) 스칼라 필드 집합이며 중첩 객체나 배열을 허용하지 않으므로, Policy_Type의 `create_schema`는 시나리오에 고정된 3개 셀(`gNB_5G`, `gNB_4G_1`, `gNB_4G_2`) × 5개 파라미터 = 15개의 정수 필드(`{cell_id}_{parameter}[_x10]`)로 정의한다. `PolicyInstanceSchema.data`는 선언된 필드를 모두, 그리고 오직 그 필드만 포함해야 엔드포인트가 수락한다(`app/main.py`의 `create_policy_instance` 참조).
+- **A1_Mediator의 실제 스키마 제약**: `non-rt-ric/A1_Mediator/app/main.py`를 확인한 결과 `CreateSchema.validate_properties`는 각 속성의 `type`이 `"integer"` 또는 `"bool"`인 경우만 허용한다(문자열/실수 타입 불허). CIO(0.5 스텝)와 HYS(0.5 스텝)는 소수 값을 가지므로, `Policy_Manager`는 이 두 파라미터를 **10배 스케일 정수**(예: CIO 3.5dB → 35)로 인코딩하여 A1 Policy 필드에 담는다. 또한 `create_schema.properties`는 평평한(flat) 스칼라 필드 집합이며 중첩 객체나 배열을 허용하지 않으므로, Policy_Type의 `create_schema`는 시나리오에 고정된 3개 셀(`gNB_5G`, `gNB_4G_1`, `gNB_4G_2`) × 5개 파라미터 = 15개의 정수 필드(`{cell_id}_{parameter}[_x10]`)로 정의한다. `PolicyInstanceSchema.data`는 선언된 필드를 모두, 그리고 오직 그 필드만 포함해야 엔드포인트가 수락한다(`app/main.py`의 `create_policy_instance` 참조).
 - **A1_Mediator가 실제로 제공하는 8개 Policy_Type/Policy_Instance 엔드포인트**(healthcheck 제외):
   1. `GET /a1-p/policytypes` — 등록된 policy_type_id 목록
   2. `GET /a1-p/policytypes/{policy_type_id}` — Policy_Type 조회
@@ -62,7 +62,7 @@ graph TB
     end
 
     subgraph NearRT["Near-RT RIC"]
-        A1M["A1_Mediator_standalone<br/>FastAPI :9000"]
+        A1M["non-rt-ric<br/>FastAPI :9000"]
         XAPP["xApp (FlexRIC)"]
     end
 
@@ -1039,7 +1039,7 @@ sequenceDiagram
 
 ### 통합 테스트 대상
 
-- `A1_Mediator_standalone` 실제 프로세스 기동 후 Policy_Manager의 5개 실제 사용 엔드포인트(policytypes 조회/등록, policies 생성/상태조회) 왕복 확인.
+- `non-rt-ric` 실제 프로세스 기동 후 Policy_Manager의 5개 실제 사용 엔드포인트(policytypes 조회/등록, policies 생성/상태조회) 왕복 확인.
 - MongoDB(Knowledge DB, 기존 인스턴스)에 대한 `planner_manifest`/`Evidence_Record` 실제 쓰기/읽기 확인.
 - 실제 `cell_kpi.csv` 샘플(예: `scenarios/results/seed12_dual_nr_final_900s_20260827_163942/cell_kpi.csv`)을 이용한 Data_Extractor 종단 간 추출 확인.
 - Retraining_Controller의 신규 결과 디렉터리 감지(파일시스템 watcher) 스모크 테스트.

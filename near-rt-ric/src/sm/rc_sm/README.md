@@ -14,4 +14,4 @@ We have showcased this feature at O-RAN meetings:
 In addition, RC SM has been further tested against Keysight RAN simulator at O-RAN PlugFest Fall 2023:
    - RAN report function "Call Process Outcome"
    - RAN control function "DRB QoS Configuration"
-For more information, please refer to the corresponding xApp: `flexric/examples/xApp/c/keysight/xapp_keysight_kpm_rc.c`
+For more information, please refer to the corresponding xApp: `near-rt-ric/examples/xApp/c/keysight/xapp_keysight_kpm_rc.c`

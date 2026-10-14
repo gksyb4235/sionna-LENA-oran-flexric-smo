@@ -44,7 +44,7 @@ def services():
             "uvicorn",
             "app.main:app",
             "--app-dir",
-            ROOT / "A1_Mediator_standalone/A1_Mediator",
+            ROOT / "non-rt-ric/A1_Mediator",
             "--host",
             "127.0.0.1",
             "--port",
@@ -53,7 +53,7 @@ def services():
         "ui": [PYTHON, "-m", "agora_offline.server", "--port", "18081"],
         "gateway": [PYTHON, "-m", "smo.ric_control.gateway", "--port", "18082"],
         "ric": [
-            ROOT / "flexric/build/examples/ric/nearRT-RIC",
+            ROOT / "near-rt-ric/build/examples/ric/nearRT-RIC",
             "-c",
             CONF / "flexric.conf",
             "-p",
@@ -306,19 +306,7 @@ def main():
         except OSError:
             pass
     elif args.command == "build":
-        execute(["cmake", "-S", "flexric", "-B", "flexric/build"])
-        execute(
-            [
-                "cmake",
-                "--build",
-                "flexric/build",
-                "--target",
-                "nearRT-RIC",
-                "xapp_agora_ctrl",
-                "-j",
-                "6",
-            ]
-        )
+        execute([ROOT / "near-rt-ric/build-local.sh"])
         execute(
             [
                 "cmake",

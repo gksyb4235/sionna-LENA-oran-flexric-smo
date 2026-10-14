@@ -1,6 +1,6 @@
 """Loopback HTTP routes for real FlexRIC/E2 deployment.
 
-rApp execution requires a matching policy in A1_Mediator_standalone.
+rApp execution requires a matching policy in non-rt-ric.
 Application success comes from ns-3 readbacks, independently of xApp exit status.
 """
 
@@ -50,7 +50,7 @@ def near_rt(body: Submission, background: BackgroundTasks):
 
 @app.put("/a1-p/policytypes/401/policies/{ident}", status_code=202)
 def non_rt(ident: str, body: Submission, background: BackgroundTasks):
-    raise HTTPException(410, "Submit rApp policies to A1_Mediator_standalone on port 9000")
+    raise HTTPException(410, "Submit rApp policies to non-rt-ric on port 9000")
 
 
 @app.post("/api/rapp/deployments", status_code=202)

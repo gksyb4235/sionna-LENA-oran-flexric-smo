@@ -1,3 +1,7 @@
+# AGORA Near-RT RIC
+
+This directory contains the vendored FlexRIC source used by AGORA. For this repository, follow [LOCAL_NS3_SETUP.md](LOCAL_NS3_SETUP.md) and [AGORA.md](../AGORA.md); the upstream reference follows below.
+
 # FlexRIC introduction
 
 This repository contains [O-RAN Alliance](https://www.o-ran.org/) compliant E2 Node Agent emulators, a nearRT-RIC, and xApps written in C/C++ and Python.
@@ -80,8 +84,8 @@ sudo apt-get install python3.10-dev
 
 ## 2.1 Clone the FlexRIC repository
 ```bash
-git clone https://gitlab.eurecom.fr/mosaic5g/flexric
-cd flexric/
+git clone https://gitlab.eurecom.fr/mosaic5g/flexric near-rt-ric
+cd near-rt-ric/
 ```
 
 ## 2.2 Build FlexRIC
@@ -279,7 +283,7 @@ Follow the instructions https://docs.srsran.com/projects/project/en/latest/tutor
 
 ## 5.3 Integration with Keysight RICtest
 
-The OAI nearRT-RIC with the xApp `flexric/examples/xApp/c/keysight/xapp_keysight_kpm_rc.c` were successfully tested with [Keysight's RICtest RAN emulator](https://www.keysight.com/us/en/product/P8828S/rictest-ran-intelligent-controller-test-solutions.html), as demonstrated at O-RAN PlugFest Fall 2023.
+The OAI nearRT-RIC with the xApp `near-rt-ric/examples/xApp/c/keysight/xapp_keysight_kpm_rc.c` were successfully tested with [Keysight's RICtest RAN emulator](https://www.keysight.com/us/en/product/P8828S/rictest-ran-intelligent-controller-test-solutions.html), as demonstrated at O-RAN PlugFest Fall 2023.
 
 Please find more information at the following links (available only to the O-RAN Alliance members):
 * [recorded PlugFest session](https://oranalliance.atlassian.net/wiki/download/attachments/2907668584/O-RAN_PFFall2023_venue05.mp4). FlexRIC is shown after 3 hours 33 minutes (3:33:00).

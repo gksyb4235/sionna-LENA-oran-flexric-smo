@@ -69,7 +69,7 @@ def health():
     return {
         "ok": True,
         "component": "agora_non_rt_ric",
-        "host": "A1_Mediator_standalone",
+        "host": "non-rt-ric",
         "policy_type": 401,
     }
 

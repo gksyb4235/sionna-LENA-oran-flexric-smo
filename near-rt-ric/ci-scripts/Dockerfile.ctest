@@ -85,7 +85,7 @@ RUN rm -rf /tmp/asn1c && \
     make install
 
 FROM oai-flexric-base as oai-flexric-builder
-WORKDIR /flexric
+WORKDIR /near-rt-ric
 
 COPY . .
 

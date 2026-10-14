@@ -7,14 +7,14 @@ The active entry point is `python scripts/agora.py up` from the repository root.
 | agentic_ai/agora_offline/ | Final frozen GNN, five reasoning agents, goal/constraint editor and operator UI |
 | agentic_ai/agora_offline/applications.py | One shared contract for two rApps and three xApps |
 | agentic_ai/.env | Private provider settings; ignored by Git |
-| non_rt_ric/ | Durable A1 policies and rApp dispatch, hosted by A1_Mediator_standalone |
+| non_rt_ric/ | Durable A1 policies and rApp dispatch, hosted by non-rt-ric |
 | ric_control/ | Execution xApp dispatch, FlexRIC/E2 binding and ns3 readbacks |
 
 Energy Saving and Coverage Optimization are rApps. Throughput Maximization, Load Balancing and Mobility Optimization are xApps. Roles select the deployment route and do not alter GNN weights, graph nodes or forecasting inputs. All five use the same application contract and reviewed-plan shape.
 
 ```text
 Operator-reviewed Energy / Coverage plan
-  -> Non-RT RIC (A1_Mediator_standalone, port 9000)
+  -> Non-RT RIC (non-rt-ric, port 9000)
   -> Energy Saving / Coverage rApp handler
   -> execution xApp gateway (port 18082)
   -> FlexRIC Near-RT RIC -> E2 -> ns3

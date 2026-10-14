@@ -219,14 +219,14 @@ docker run --rm hello-world
 ```bash
 export REPO_ROOT="$HOME/LENA-oran-flexric-smo"
 export DEPS_ROOT="$HOME/LENA-oran-flexric-smo-deps"
-export FLEXRIC_ROOT="$DEPS_ROOT/flexric"
+export NEAR_RT_RIC_ROOT="$REPO_ROOT/near-rt-ric"
 
 git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git "$REPO_ROOT"
 mkdir -p "$DEPS_ROOT"
 ```
 
-`REPO_ROOT`는 이 프로젝트이고, `DEPS_ROOT`는 Git에 포함되지 않는 e2sim/FlexRIC
-외부 소스 전용 디렉터리입니다. 새 터미널에서도 편하게 쓰려면 위 세 `export`를
+`REPO_ROOT`는 이 프로젝트이고, `DEPS_ROOT`는 Git에 포함되지 않는 e2sim
+외부 소스 전용 디렉터리입니다. Near-RT RIC 소스는 저장소의 `near-rt-ric/`에 포함됩니다. 새 터미널에서도 편하게 쓰려면 위 세 `export`를
 `~/.bashrc`에 추가합니다.
 
 ### 4. e2sim 빌드 및 설치
@@ -252,57 +252,16 @@ test -f /usr/local/lib/libe2sim.a
 test -d /usr/local/include/e2sim
 ```
 
-### 5. FlexRIC nearRT-RIC 빌드 및 설치
+### 5. Near-RT RIC 빌드 및 설치
 
-e2sim과 프로토콜 버전을 맞추기 위해 반드시 E2AP v1.01, KPM v3.00으로 구성합니다.
-아래 commit은 현재 검증된 nearRT-RIC 코어와 동일합니다. 로컬 RET xApp 개발분은
-nearRT-RIC 실행에 필요하지 않습니다.
-
-FlexRIC의 RRC monitor 예제는 시스템 `asn1c` 0.9.24가 제공하는 구형 옵션으로는
-빌드되지 않습니다. 특히 `-gen-UPER`가 지원되지 않아 `gen-UPER: Invalid argument`
-및 `ANY_aper.c: No such file or directory`가 발생합니다. FlexRIC가 사용하는
-`mouse07410/asn1c` fork를 먼저 설치합니다.
+이 저장소의 `near-rt-ric/`는 AGORA 제어 xApp을 포함한 FlexRIC 소스입니다. 빌드 스크립트는 ns-3와 호환되는 E2AP v1.01 / KPM v3.00을 고정하고, 필요한 RIC·서비스 모델·AGORA 제어 xApp·KPM monitor를 빌드합니다.
 
 ```bash
-if [ ! -d "$DEPS_ROOT/asn1c/.git" ]; then
-  git clone https://github.com/mouse07410/asn1c.git "$DEPS_ROOT/asn1c"
-fi
-git -C "$DEPS_ROOT/asn1c" checkout 940dd5fa9f3917913fd487b13dfddfacd0ded06e
-cd "$DEPS_ROOT/asn1c"
-autoreconf -iv
-./configure --prefix=/opt/asn1c
-make -j"$(nproc)"
-sudo make install
+cd "$REPO_ROOT"
+FLEXRIC_BUILD_JOBS=6 ./near-rt-ric/build-local.sh
 ```
 
-그다음 FlexRIC를 빌드합니다. 이미 `FLEXRIC_ROOT`에 clone이 있으면 `git clone`은
-다시 실행하지 말고 `fetch`부터 실행합니다.
-
-```bash
-if [ ! -d "$FLEXRIC_ROOT/.git" ]; then
-  git clone https://gitlab.eurecom.fr/mosaic5g/flexric.git "$FLEXRIC_ROOT"
-fi
-git -C "$FLEXRIC_ROOT" fetch origin
-git -C "$FLEXRIC_ROOT" checkout --detach \
-  307e1d0a5c26751c9e5595805b668a4f91d09550
-
-cmake -S "$FLEXRIC_ROOT" -B "$FLEXRIC_ROOT/build" \
-  -DASN1C_EXEC=/opt/asn1c/bin/asn1c \
-  -DCMAKE_BUILD_TYPE=Debug \
-  -DE2AP_VERSION=E2AP_V1 \
-  -DKPM_VERSION=KPM_V3_00 \
-  -DXAPP_MULTILANGUAGE=OFF
-cmake --build "$FLEXRIC_ROOT/build" -j"$(nproc)" && \
-  sudo cmake --install "$FLEXRIC_ROOT/build" && \
-  sudo ldconfig
-```
-
-`cmake --build`가 실패하면 설치 단계도 실행하지 않습니다. 이전에 실패한 빌드의
-오래된 산출물을 설치하지 않도록 `&&`를 유지하십시오.
-
-설치 후 `/usr/local/etc/flexric/flexric.conf`의 `NEAR_RIC_IP`가
-`127.0.0.1`인지 확인합니다. RIC를 다른 호스트에서 실행할 때만 해당 IP와 ns-3의
-`E2TermIp`를 함께 변경합니다.
+설정과 서비스 모델은 `near-rt-ric/install/` 아래에 설치됩니다. 일반 사용자의 로컬 빌드이며 별도 upstream clone이나 시스템 라이브러리 재설치는 필요하지 않습니다. 상세 사항은 [Near-RT RIC 설치 안내](near-rt-ric/LOCAL_NS3_SETUP.md)를 참고합니다.
 
 ### 6. Python 가상환경과 ns-3 빌드
 
@@ -414,10 +373,10 @@ python scripts/run.py \
 터미널 2 — nearRT-RIC:
 
 ```bash
-cd "$FLEXRIC_ROOT"
+cd "$NEAR_RT_RIC_ROOT"
 ./build/examples/ric/nearRT-RIC \
-  -c /usr/local/etc/flexric/flexric.conf \
-  -p /usr/local/lib/flexric/
+  -c ./install/etc/flexric/flexric.conf \
+  -p ./install/lib/flexric/
 ```
 
 터미널 3 — UE 1대, A3 handover, GUI/E2/KPI 통합 시나리오:

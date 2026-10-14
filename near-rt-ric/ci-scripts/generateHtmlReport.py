@@ -60,7 +60,7 @@ def ctest_summary(args, reportName, chapterName):
     summary = ''
     if os.path.isfile(f'{cwd}/archives/{reportName}'):
         status = True
-        section_start_pattern = 'Test project /flexric/build'
+        section_start_pattern = 'Test project /near-rt-ric/build'
         section_end_pattern = 'Total Test time'
         section_status = False
         summary = generate_list_header()

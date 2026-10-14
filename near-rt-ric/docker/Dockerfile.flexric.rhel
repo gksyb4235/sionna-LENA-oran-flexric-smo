@@ -91,7 +91,7 @@ FROM oai-flexric-base as oai-flexric-builder
 ARG E2AP_VERSION=E2AP_V3
 ARG KPM_VERSION=KPM_V3_00
 
-WORKDIR /flexric
+WORKDIR /near-rt-ric
 
 COPY . .
 
@@ -104,9 +104,9 @@ RUN mkdir build && \
     ninja && \
     ninja install" && \
     echo "--- Check shared objects dependencies for executable nearRT-RIC ---" && \
-    ldd /flexric/build/examples/ric/nearRT-RIC && \
+    ldd /near-rt-ric/build/examples/ric/nearRT-RIC && \
     echo "--- Check shared objects dependencies for xApp shared library ---" && \
-    ldd /flexric/build/src/xApp/libe42_xapp_shared.so
+    ldd /near-rt-ric/build/src/xApp/libe42_xapp_shared.so
 
 #---------------------------------------------------------------------
 # TARGET IMAGE
@@ -141,28 +141,28 @@ WORKDIR /usr/local/lib64/flexric/
 COPY --from=oai-flexric-builder \
     /usr/local/lib64/flexric /usr/local/lib64/flexric
 
-WORKDIR /flexric/build/src/xApp/
+WORKDIR /near-rt-ric/build/src/xApp/
 COPY --from=oai-flexric-builder \
-    /flexric/build/src/xApp/libe42_xapp_shared.so \
-    /flexric/build/src/xApp/
+    /near-rt-ric/build/src/xApp/libe42_xapp_shared.so \
+    /near-rt-ric/build/src/xApp/
 
 COPY --from=oai-flexric-builder \
-    /flexric/build/examples/ric/nearRT-RIC /usr/local/bin/nearRT-RIC
+    /near-rt-ric/build/examples/ric/nearRT-RIC /usr/local/bin/nearRT-RIC
 
 ## Copy xApps
 WORKDIR /usr/local/flexric
 COPY --from=oai-flexric-builder \
-    /flexric/build/examples/xApp /usr/local/flexric/xApp
+    /near-rt-ric/build/examples/xApp /usr/local/flexric/xApp
 
 ## Copy E2 agent emulators
 COPY --from=oai-flexric-builder \
-    /flexric/build/examples/emulator/agent /usr/local/flexric/emulator/agent
+    /near-rt-ric/build/examples/emulator/agent /usr/local/flexric/emulator/agent
 
 RUN ldconfig && \
     echo "--- Check shared objects dependencies for executable nearRT-RIC ---" && \
     ldd /usr/local/bin/nearRT-RIC && \
     echo "--- Check shared objects dependencies for xApp shared library ---" && \
-    ldd /flexric/build/src/xApp/libe42_xapp_shared.so && \
+    ldd /near-rt-ric/build/src/xApp/libe42_xapp_shared.so && \
     echo "--- Check shared objects dependencies for flexric shared libraries ---" && \
     ldd /usr/local/lib64/flexric/*.so
 

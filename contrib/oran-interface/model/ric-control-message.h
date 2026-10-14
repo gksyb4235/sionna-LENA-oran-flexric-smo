@@ -51,13 +51,13 @@ namespace ns3 {
     enum Antenna_Control_Action_ID {RET_Tilt_Control=1};
 
     // Energy-state control action IDs (style 300); the encoder
-    // (flexric/examples/xApp/c/orange/xapp_es_with_cell_util.c) sends these
+    // (near-rt-ric/examples/xApp/c/orange/xapp_es_with_cell_util.c) sends these
     // as the ASCII digit characters '0'/'1'/'2' in the RIC Control Action ID
     // field, so the enum values below must match byte-for-byte.
     enum Energy_State_Control_Action_ID {Cell_Off='0', Cell_On='1', Cell_Sleep='2'};
 
     // custom RAN parameter ids used by the RET control message (style 400);
-    // must match the encoder in flexric/examples/xApp/c/ctrl/xapp_ret_ctrl.c
+    // must match the encoder in near-rt-ric/examples/xApp/c/ctrl/xapp_ret_ctrl.c
     static constexpr uint32_t RET_PARAM_CONFIG_STRUCT = 32000;
     static constexpr uint32_t RET_PARAM_TILT_DEG = 32001;
     static constexpr uint32_t RET_PARAM_BEARING_DEG = 32002;

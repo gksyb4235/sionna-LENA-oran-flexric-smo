@@ -1,4 +1,4 @@
-# AGORA standalone A1 / Non-RT integration
+# AGORA Non-RT RIC
 
 The active repository launcher is `python scripts/agora.py non-rt`, or `python scripts/agora.py up` for all services. It hosts this mediator on loopback port9000 and includes the AGORA router from `smo/non_rt_ric/a1.py`.
 

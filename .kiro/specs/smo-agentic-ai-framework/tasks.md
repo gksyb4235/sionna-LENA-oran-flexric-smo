@@ -434,7 +434,7 @@
     - **검증: 요구사항 11.15**
 
   - [x] 9.11 실제 A1 Mediator 계약 통합 테스트 작성
-    - `A1_Mediator_standalone/A1_Mediator/app/main.py`를 대상으로 정책 유형 조회/등록, 인스턴스 생성/상태 조회 및 flat integer schema 호환성을 자동 검증한다.
+    - `non-rt-ric/A1_Mediator/app/main.py`를 대상으로 정책 유형 조회/등록, 인스턴스 생성/상태 조회 및 flat integer schema 호환성을 자동 검증한다.
     - 허용된 8개 외 엔드포인트 호출이 없고 TemporalPlan 발행 시 정확히 5개 인스턴스가 생성되는지 검증한다.
     - _요구사항: 11.1~11.16_
 
