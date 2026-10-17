@@ -171,6 +171,28 @@ def selected_jobs(manifest: dict, index: int, count: int, max_jobs: int | None =
     return selected if max_jobs is None else selected[:max_jobs]
 
 
+def jobs_in_range(manifest: dict, jobs: list[dict], start: int, end: int) -> list[dict]:
+    """Select inclusive numeric ID suffixes, never CSV row positions or trace seeds."""
+    known = {int(j["job_id"].rsplit("_", 1)[1]) for j in manifest["jobs"]}
+    if start < 1 or end < start or end > max(known) or any(i not in known for i in range(start, end + 1)):
+        raise ValueError(f"Scenario range must contain existing IDs {min(known)}..{max(known)}, inclusive")
+    return sorted([j for j in jobs if start <= int(j["job_id"].rsplit("_", 1)[1]) <= end],
+                  key=lambda j: int(j["job_id"].rsplit("_", 1)[1]))
+
+
+def cpu_slots(cores_per_job: int, workers: int) -> list[list[int]]:
+    """Allocate disjoint slots from the process's allowed logical CPU IDs."""
+    if cores_per_job < 1 or workers < 1:
+        raise ValueError("cores-per-job and workers must be positive")
+    if not hasattr(os, "sched_getaffinity") or not shutil.which("taskset"):
+        raise RuntimeError("CPU pinning requires Linux/WSL sched_getaffinity and taskset")
+    available = sorted(os.sched_getaffinity(0))
+    required = cores_per_job * workers
+    if required > len(available):
+        raise ValueError(f"Requested {required} logical CPUs ({cores_per_job} x {workers}), only {len(available)} allowed")
+    return [available[i * cores_per_job:(i + 1) * cores_per_job] for i in range(workers)]
+
+
 def schedule_rows(job: dict) -> list[tuple]:
     return [(event["time_s"], p, event["updates"][p]) for event in job["events"]
             for p in PARAMETERS if p in event["updates"]]
@@ -507,7 +529,8 @@ def stop_owned(process: subprocess.Popen) -> None:
         process.wait(timeout=10)
 
 
-def launch(manifest: dict, config: dict, job: dict, root: Path, provenance: dict) -> dict:
+def launch(manifest: dict, config: dict, job: dict, root: Path, provenance: dict,
+           cpu_ids: list[int] | None = None) -> dict:
     job_root = root / "jobs" / job["job_id"]
     attempts = attempt_paths(root, job)
     job_root.mkdir(parents=True, exist_ok=True)
@@ -523,15 +546,27 @@ def launch(manifest: dict, config: dict, job: dict, root: Path, provenance: dict
         writer.writerows(schedule_rows(job))
     atomic_json(attempt / "job.json", job)
     argv = argv_for(manifest, config, job, attempt)
+    environment = clean_environment(config)
+    if cpu_ids is not None:
+        allowed = set(os.sched_getaffinity(0))
+        if not cpu_ids or len(set(cpu_ids)) != len(cpu_ids) or not set(cpu_ids) <= allowed:
+            raise ValueError("CPU slot is empty, duplicated or outside current affinity")
+        taskset = shutil.which("taskset")
+        if taskset is None:
+            raise RuntimeError("taskset is required for per-job CPU pinning")
+        argv = [taskset, "--cpu-list", ",".join(map(str, cpu_ids)), *argv]
+        for key in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+                    "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+            environment[key] = str(len(cpu_ids))
     record = {"job_id": job["job_id"], "job_hash": canonical_hash(job), "manifest_hash": canonical_hash(manifest),
               "status": "launching", "started_at_utc": utc_now(), "hostname": socket.gethostname(),
-              "argv": argv, "cwd": str(attempt), "provenance_hash": canonical_hash(provenance),
+              "argv": argv, "cpu_ids": cpu_ids, "cwd": str(attempt), "provenance_hash": canonical_hash(provenance),
               "schedule_sha256": sha256(attempt / "parameter_schedule.csv"), "attempt": number}
     atomic_json(attempt / "execution.json", record)
     stdout = (attempt / "stdout.log").open("xb", buffering=0)
     stderr = (attempt / "stderr.log").open("xb", buffering=0)
     try:
-        process = subprocess.Popen(argv, cwd=attempt, env=clean_environment(config),
+        process = subprocess.Popen(argv, cwd=attempt, env=environment,
                                    stdout=stdout, stderr=stderr, start_new_session=True)
         record.update(status="running", pid=process.pid)
         atomic_json(attempt / "execution.json", record)
@@ -565,10 +600,12 @@ def output_root(config: dict) -> Path:
 
 
 def run_batch(manifest: dict, config: dict, jobs: list[dict], *, workers: int, shard_index: int,
-              shard_count: int, resume: bool, retry_failed: bool) -> dict:
+              shard_count: int, resume: bool, retry_failed: bool, cores_per_job: int | None = None) -> dict:
     if sys.platform != "linux":
         raise RuntimeError("run is supported only on Linux/WSL")
+    slots = cpu_slots(cores_per_job, workers) if cores_per_job is not None else None
     provenance = preflight(manifest, config, jobs, workers)
+    provenance.update(cores_per_job=cores_per_job, cpu_slots=slots)
     root = output_root(config)
     root.mkdir(parents=True, exist_ok=True)
     with exclusive_lock(root / "locks" / f"shard-{shard_index}-of-{shard_count}.lock"):
@@ -627,11 +664,11 @@ def run_batch(manifest: dict, config: dict, jobs: list[dict], *, workers: int, s
         started, next_launch = time.monotonic(), time.monotonic()
         state = {"status": "running", "started_at_utc": utc_now(), "pid": os.getpid(),
                  "hostname": socket.gethostname(), "shard_index": shard_index, "shard_count": shard_count,
-                 "workers": workers, "skipped_complete": skipped}
+                 "workers": workers, "cores_per_job": cores_per_job, "cpu_slots": slots, "skipped_complete": skipped}
         def save(reason=None):
             state.update(updated_at_utc=utc_now(), wall_seconds=time.monotonic() - started,
                          pending=[j["job_id"] for j in pending], completed=finished, wait_reason=reason,
-                         running=[{"job_id": ident, "pid": item["process"].pid,
+                         running=[{"job_id": ident, "pid": item["process"].pid, "cpu_ids": item["record"].get("cpu_ids"),
                                    "wall_seconds": time.monotonic() - item["start"],
                                    "last_cell_time_s": last_cell_time(item["attempt"] / "data" / ident)}
                                   for ident, item in running.items()])
@@ -646,7 +683,9 @@ def run_batch(manifest: dict, config: dict, jobs: list[dict], *, workers: int, s
                         stop_owned(item["process"])
                         reason = "timed_out"
                     if item["process"].poll() is not None:
-                        finished.append(finish(item, reason))
+                        record = finish(item, reason)
+                        finished.append(record)
+                        print(f"[{record['status']}] {ident} exit={record['returncode']} wall={record['wall_seconds']:.1f}s", file=sys.stderr, flush=True)
                         del running[ident]
                 reason = None
                 if pending and len(running) < workers:
@@ -662,7 +701,14 @@ def run_batch(manifest: dict, config: dict, jobs: list[dict], *, workers: int, s
                         reason = "startup_stagger"
                     else:
                         job = pending.pop(0)
-                        running[job["job_id"]] = launch(manifest, config, job, root, provenance)
+                        if slots is None:
+                            item = launch(manifest, config, job, root, provenance)
+                        else:
+                            occupied = {tuple(i["record"]["cpu_ids"]) for i in running.values()}
+                            slot = next(s for s in slots if tuple(s) not in occupied)
+                            item = launch(manifest, config, job, root, provenance, cpu_ids=slot)
+                        running[job["job_id"]] = item
+                        print(f"[start] {job['job_id']} pid={item['process'].pid} cpu={item['record'].get('cpu_ids')} remaining={len(pending)}", file=sys.stderr, flush=True)
                         next_launch = time.monotonic() + config["startup_stagger_s"]
                 save(reason)
                 if pending or running:
@@ -696,7 +742,7 @@ def status(manifest: dict, config: dict, jobs: list[dict], verify: bool = False)
                "attempts": len(attempts)}
         if path and (path / "execution.json").is_file():
             record = read_json(path / "execution.json")
-            row.update(status=record["status"], returncode=record.get("returncode"),
+            row.update(status=record["status"], returncode=record.get("returncode"), cpu_ids=record.get("cpu_ids"),
                        wall_seconds=record.get("wall_seconds"), output=str(path / "data" / job["job_id"]),
                        last_cell_time_s=last_cell_time(path / "data" / job["job_id"]))
             if record.get("status") == "running":
@@ -740,6 +786,9 @@ def main() -> None:
     parser.add_argument("--shard-count", type=int, default=1)
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument("--max-jobs", type=int)
+    parser.add_argument("--start-index", type=int, help="Inclusive conflict scenario ID, starting at 1")
+    parser.add_argument("--end-index", type=int, help="Inclusive conflict scenario ID, up to 500")
+    parser.add_argument("--cores-per-job", type=int, help="Pin each concurrent job to this many logical CPUs")
     parser.add_argument("--tier", choices=("all", "A", "B", "C", "D"), default="all")
     parser.add_argument("--pilot20", action="store_true", help="Select the reviewed twenty-case pilot list")
     parser.add_argument("--pilot-ids", type=Path, help="Explicit JSON list or {job_ids:[...]} for pilot selection")
@@ -762,20 +811,33 @@ def main() -> None:
                 raise ValueError("Pilot list must contain job IDs")
             if args.pilot20 and len(pilot_ids) != 20:
                 raise ValueError("--pilot20 requires exactly twenty IDs")
-        jobs = selected_jobs(manifest, args.shard_index, args.shard_count, args.max_jobs, args.tier, pilot_ids)
+        ranged = args.start_index is not None or args.end_index is not None
+        if ranged and (args.start_index is None or args.end_index is None or args.shard_index != 0 or args.shard_count != 1):
+            raise ValueError("Supply both range bounds; do not combine ranges with modulo sharding")
+        jobs = selected_jobs(manifest, args.shard_index, args.shard_count, None if ranged else args.max_jobs, args.tier, pilot_ids)
+        if ranged:
+            jobs = jobs_in_range(manifest, jobs, args.start_index, args.end_index)
+            if args.max_jobs is not None:
+                if args.max_jobs < 1:
+                    raise ValueError("max-jobs must be positive")
+                jobs = jobs[:args.max_jobs]
+        slots = cpu_slots(args.cores_per_job, args.workers) if args.cores_per_job is not None and args.command in ("plan", "preflight", "run") else None
         if args.command == "plan":
             root = output_root(config)
             result = {"simulation_launched": False, "manifest_hash": canonical_hash(manifest),
                       "selected_jobs": len(jobs), "shard_index": args.shard_index, "shard_count": args.shard_count,
+                      "cores_per_job": args.cores_per_job, "cpu_slots": slots,
                       "jobs": [{"job_id": j["job_id"], "trace_seed": j["trace_seed"],
                                 "schedule_rows": schedule_rows(j),
                                 "argv_example": argv_for(manifest, config, j, root / "jobs" / j["job_id"] / "attempt0001")}
                                for j in jobs]}
         elif args.command == "preflight":
             result = preflight(manifest, config, jobs, args.workers)
+            result.update(cores_per_job=args.cores_per_job, cpu_slots=slots)
         elif args.command == "run":
             result = run_batch(manifest, config, jobs, workers=args.workers, shard_index=args.shard_index,
-                               shard_count=args.shard_count, resume=args.resume, retry_failed=args.retry_failed)
+                               shard_count=args.shard_count, resume=args.resume, retry_failed=args.retry_failed,
+                               cores_per_job=args.cores_per_job)
         else:
             result = status(manifest, config, jobs, verify=args.command == "collect")
         if args.report:
