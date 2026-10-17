@@ -118,7 +118,7 @@ SionnaLookupChannelModel::ActivateRetCache(const std::string& cell,double tilt)
     m_gnbCache[cell]=m_retCaches.at(key);
     m_channelMatrixMap.clear();
     m_channelParamsMap.clear();
-    NS_LOG_UNCOND("[AGORA RET cache] " << cell << " tilt=" << tilt << " frequency=" << m_frequency);
+    NS_LOG_UNCOND("[RET cache] " << cell << " tilt=" << tilt << " frequency=" << m_frequency);
 }
 
 SionnaLookupChannelModel::SionnaLookupChannelModel()

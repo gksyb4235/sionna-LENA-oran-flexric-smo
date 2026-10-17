@@ -30,6 +30,35 @@ def search(changes=None, current=None, policy=None, t=180):
 
 
 class SearchTests(unittest.TestCase):
+    def test_complete_integer_grid_precedes_feedback_driven_joint_batch(self):
+        current = dict(CURRENT, txp_4g1=40.0, txp_4g2=40.0)
+        grid = search(current=current)
+        expected = {
+            (key, float(value), delay)
+            for key, values in [("txp_5g", range(33, 43)),
+                                ("txp_4g1", range(30, 40)),
+                                ("txp_4g2", range(30, 40))]
+            for value in values for delay in [0, 30, 60, 90]
+        }
+        actual = {(next(iter(p["changes"])), next(iter(p["changes"].values())), p["delay_s"])
+                  for p in [grid.base, *grid.first]}
+        self.assertEqual(actual, expected)
+        self.assertEqual(len(grid.first), 119)
+        grid.record({"all_candidates": [{**grid.base, "feasible": True}]})
+        self.assertEqual(grid.next_stage(True), "axes")
+        grid.record({"all_candidates": [{**p, "feasible": True} for p in grid.first]})
+        self.assertEqual(grid.next_stage(True), "combinations")
+        pivot = {"changes": {"txp_4g2": 37.0}}
+        self.assertNotEqual(grid.pending("combinations")[:16],
+                            grid.pending("combinations", pivot)[:16])
+        joints = grid.pending("combinations", pivot)[:128]
+        self.assertEqual({len(p["changes"]) for p in joints}, {2, 3})
+        for p in joints:
+            self.assertLessEqual(sum(abs(current[k] - v) for k, v in p["changes"].items()), 10)
+        grid.record({"all_candidates": [{**p, "feasible": True} for p in joints]})
+        self.assertIsNone(grid.next_stage(True))
+        self.assertGreater(grid.report(True)["combination_candidates"], 128)
+
     def test_weaker_values_and_all_axes_are_not_dependent_on_llm_labels(self):
         grid = search()
         self.assertEqual({a for p in grid.first for a in p["axes"]}, {"time", "intensity", "cell"})
@@ -104,7 +133,7 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(len(plans), 1)
         self.assertEqual(plans[0]["changes"], extra["changes"])
 
-    def test_impossible_goal_continues_gnn_analysis_until_declared_grid_exhausted(self):
+    def test_impossible_goal_continues_gnn_analysis_until_disclosed_budget(self):
         async def run():
             session = Session(
                 dict(prompt="fixture", run_id="fixture", issue_time_s=180, mode="deterministic"),
@@ -144,11 +173,11 @@ class SearchTests(unittest.TestCase):
         ):
             session = asyncio.run(run())
         report = session.search_report()
-        self.assertEqual(report["stop_reason"], "declared_candidate_grid_exhausted")
-        self.assertEqual(report["combinations_evaluated"], report["combination_candidates"])
+        self.assertEqual(report["stop_reason"], "budget_exhausted_with_unsearched_candidates")
+        self.assertLess(report["combinations_evaluated"], report["combination_candidates"])
         self.assertGreater(session.batch_count, 2)
         self.assertLessEqual(session.batch_count, 5)
-        self.assertLessEqual(session.candidate_count, 160)
+        self.assertLessEqual(session.candidate_count, 513)
         self.assertEqual(len(session.search.seen), session.candidate_count)
         analyses = [
             e for e in session.events if e["type"] == "tool_result" and e["content"] == "Analyze"
@@ -200,13 +229,14 @@ class SearchTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch("agora_offline.orchestrator.STATE", Path(directory)),
+            patch("agora_offline.orchestrator.MAX_CANDIDATES", 32),
         ):
             session = asyncio.run(run())
-        report = session.search_report()
+            report = session.search_report()
         self.assertEqual(report["stop_reason"], "budget_exhausted_with_unsearched_candidates")
         self.assertIsNotNone(report["next_stage"])
         self.assertLessEqual(session.batch_count, 5)
-        self.assertLessEqual(session.candidate_count, 160)
+        self.assertLessEqual(session.candidate_count, 32)
 
 
 class RealRegressionTests(unittest.TestCase):

@@ -210,6 +210,21 @@ class EstimatorTests(unittest.TestCase):
         self.assertEqual(result["invalid_count"], 2)
         self.assertEqual(result["all_candidates"][0]["candidate_id"], "late")
 
+    def test_joint_txp_allocation_preserves_scope_and_total_change_budget(self):
+        plans = [
+            dict(candidate_id="joint", changes={"txp_5g": 40, "txp_4g1": 40, "txp_4g2": 40}),
+            dict(candidate_id="too_large", changes={"txp_5g": 37, "txp_4g1": 37}),
+            dict(candidate_id="unrelated", changes={"txp_5g": 40, "hys_db": 3}),
+        ]
+        result = self.estimator.evaluate("run", 180, intent(), plan("request"), plans)
+        rows = {r["candidate_id"]: r for r in result["all_candidates"]}
+        self.assertEqual(rows["joint"]["status"], "evaluated")
+        self.assertEqual(rows["too_large"]["status"], "invalid")
+        self.assertEqual(rows["unrelated"]["status"], "invalid")
+        separate = Estimator(self.runtime, {"cell_ric_domains": {"5g": "a", "4g1": "a", "4g2": "b"}})
+        blocked = separate.evaluate("run", 180, intent(), plan("request"), plans[:1])
+        self.assertEqual(blocked["invalid_count"], 1)
+
     def test_validation_margin_tightens_in_correct_direction(self):
         calibration = {
             "partition": "val",

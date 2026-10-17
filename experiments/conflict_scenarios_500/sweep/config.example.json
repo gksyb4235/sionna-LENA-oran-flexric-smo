@@ -1,0 +1,27 @@
+{
+  "ns3_root": "/home/user/LENA-oran-flexric-smo",
+  "binary": "build/scratch/agora-conflict-sweep/ns3.48-khu-agora-conflict-sweep-default",
+  "output_root": "experiments/agora_conflict_sweep/results_v1",
+  "ret_cache_root": "scenarios/khu-real/ret_caches",
+  "gnb_positions": "scenarios/khu-real/gnbs-ret.csv",
+  "python_site_packages": ".venv/lib/python3.12/site-packages",
+  "python_executable": ".venv/bin/python",
+  "source_files": [
+    "scratch/agora-conflict-sweep/khu-agora-conflict-sweep.cc",
+    "scratch/agora-conflict-sweep/conflict-schedule-control.h",
+    "src/spectrum/model/sionna-lookup-channel-model.cc",
+    "src/spectrum/model/sionna-lookup-channel-model.h",
+    "contrib/nr/model/nr-ue-rrc.cc",
+    "contrib/nr/model/nr-ue-rrc.h",
+    "contrib/nr/model/nr-gnb-rrc.cc",
+    "contrib/nr/model/nr-gnb-rrc.h",
+    "contrib/nr/model/nr-a3-rsrp-handover-algorithm.cc"
+  ],
+  "expected_sha256": {},
+  "memory_reserve_gib": 4,
+  "estimated_job_gib": 1.75,
+  "disk_reserve_gib": 10,
+  "estimated_output_gib_per_job": 0.25,
+  "startup_stagger_s": 5,
+  "timeout_s": 172800
+}

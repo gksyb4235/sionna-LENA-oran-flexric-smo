@@ -45,7 +45,7 @@ TxP is accepted within30..43dBm.36/41dBm and other non-grid values are explicitl
 1. **Intent Agent** translates the user request into unchanged requested controls, duration, delay, goals and constraints. If a stated current value differs from the replay configuration, the run fails visibly instead of changing the baseline silently.
 2. **Conflict Agent** evaluates exactly one requested plan. The estimator also computes an internal keep forecast for the same future window. The UI counts this as one request candidate and separately records the keep reference.
 3. **KPI Analyst** calls `Analyze` and may retrieve `lookup_context`. Numeric constraint diagnostics, signed coordinate-reset sensitivities and scoped DAG evidence are shared with the mitigation planner. Public decision summaries are streamed; private reasoning is not requested or exposed.
-4. **Mitigation Agent** proposes alternatives along application time, magnitude and cell location. The server adds a mandatory finite grid to the first alternative batch, interleaving all applicable axes. TxP includes weaker integer-dBm values when interpolation is enabled; other controls use trained levels. Agent proposals supplement this grid and actual parameter vectors deduplicate repeated calls. Every batch is followed by numeric `Analyze`. If no feasible, goal-meeting alternative is found after the independent axes, untested location/intensity/time combinations are evaluated automatically. At most48candidates per batch, four alternative rounds and160total candidates are allowed. Budget exhaustion with unsearched candidates is `search_incomplete`, not a claim of global infeasibility. Each compound-request alternative changes one requested control's intensity or location while holding the others as requested; the finite grid does not exhaust joint changes to several controls. A candidate cannot silently introduce a new control type or increase signed action magnitude.
+4. **Mitigation Agent** uses a bounded ReAct loop. First it evaluates the full single-control magnitude/cell/delay grid, including every weaker integer-dBm TxP value when interpolation is enabled. Results return best candidates per changed-control group plus numerical Analyze evidence. For a single TxP request, a secondary batch evaluates two/three-cell allocations around the agent-selected evaluated pivot, even if a single-cell candidate is already feasible. Joint controls preserve direction and RIC domain; the sum of absolute dB changes cannot exceed the original request magnitude (a control-distance bound, not equivalent energy savings). Unrelated control families remain prohibited. The API permits128 candidates per batch, four alternative rounds and513 total candidates including the original. Unsearched candidates and budget exhaustion remain explicit. All tool results return to the agent before the next call; a deterministic coverage guard can finish required coverage if an agent returns no valid tools.
 5. **Deployment Agent** summarizes the server-selected result and prepares a JSON validation plan. “Recommended” means predicted feasible and goal-met; a feasible plan with an unmet goal is marked partial. When none is feasible, only diagnostic candidates are returned and no executable recommendation is selected.
 
 The deterministic estimator implements the draft Eq.9 order: **hard feasibility first, goal achievement U descending, requested-intent deviation D ascending**. U is the weighted sum of saturated directional progress ratios, upper-clipped at1 but not lower-clipped at0. D includes attenuation, same-RIC relocation and normalized delay. An LLM cannot override the predictions or numeric ordering. Only the best1–2feasible candidates, or up to2infeasible diagnostics, are returned to the planner; every evaluated row stays in the UI audit. The tool distinguishes a violated guard from a mere optimization-goal shortfall.
@@ -108,3 +108,24 @@ Portable inference is checked against 136 frozen GPU forecasts across five origi
 These checks establish implementation correctness, model portability and one live LLM workflow's operability. A single successful LLM run does not establish planning quality across intents, online switched-action accuracy or actual energy savings. Separate RIC integration tests check actual E2 application and restoration; these are control-path tests, not performance evaluations. Later ns3 evaluation should replay the same seed/mobility/traffic until the issue time, branch the unchanged/requested/selected plans, measure post-action KPI guards and objectives, and compare LLM+GNN, GNN-only search and context ablations under the same candidate/query budget. The current fixed-run replay must not be presented as that branched experiment.
 
 OpenAI function calling and streaming follow the [official function-calling guide](https://developers.openai.com/api/docs/guides/function-calling), [Responses streaming guide](https://developers.openai.com/api/docs/guides/streaming-responses) and [stateless reasoning continuation guide](https://developers.openai.com/api/docs/guides/reasoning).
+# LangSmith observation
+
+Set these values in the existing server-only `smo/agentic_ai/.env` file, which is
+excluded from Git. The application accepts `LANGSMITH_TRACING_V2` as an alias;
+`LANGSMITH_TRACING` takes precedence when both are present.
+
+```dotenv
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=<server-side-key>
+LANGSMITH_PROJECT=AGORA
+```
+
+Install `agora_offline/requirements.txt` into the repository virtual environment
+and restart the UI service. `/api/status` reports public tracing configuration.
+Each session records a root trace ID in its `tracing` field. The LangSmith tree
+contains role-agent calls, public LLM inputs/outputs and usage, GNN batch
+evaluation, Analyze, DAG lookup, and the final recommendation. Opaque provider
+continuation/reasoning items and credentials are omitted. Tracing failures do
+not change the numerical decision or trigger deployment. Only an explicit
+operator action can initiate live RIC control.

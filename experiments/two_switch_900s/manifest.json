@@ -1,0 +1,1457 @@
+{
+  "schema": "ns3-two-switch-batch-v1",
+  "experiment_id": "two_switch_900s_20261015",
+  "created_at_utc": "2026-10-15T13:07:00.500062+00:00",
+  "execution_mode": "pure_ns3_predetermined_permanent_parameter_schedule",
+  "framework_decisions_used": false,
+  "external_ric_required": false,
+  "backend_root": "/home/user/LENA-oran-flexric-smo",
+  "binary": "build/scratch/ns3.48-khu-real-dual-nr-sionna-final-default",
+  "source_files": [
+    "scratch/khu-real-dual-nr-sionna-final.cc",
+    "scratch/scheduled-parameter-control.h",
+    "src/spectrum/model/sionna-lookup-channel-model.cc",
+    "src/spectrum/model/sionna-lookup-channel-model.h"
+  ],
+  "ret_cache_root": "scenarios/khu-real/ret_caches",
+  "output_root": "scenarios/results/two_switch_900s_20261015",
+  "duration_s": 900,
+  "kpi_interval_s": 1,
+  "n_ues": 300,
+  "rng_seed": 1,
+  "rng_run": 1,
+  "requested_workers": 18,
+  "baseline_parameters": {
+    "txp_5g": 43.0,
+    "txp_4g1": 43.0,
+    "txp_4g2": 43.0,
+    "ret_5g": 9.0,
+    "ret_4g1": 9.0,
+    "ret_4g2": 9.0,
+    "cio_5g": 6.0,
+    "cio_4g1": 0.0,
+    "cio_4g2": -1.0,
+    "ttt_ms": 512.0,
+    "hys_db": 1.0
+  },
+  "baseline_source": {
+    "api_run_id": "gnn_0197",
+    "final_dataset_run_id": "gnn_0184",
+    "selection": "Observed training prefix only; balanced initial TxP/RET with per-cell action headroom.",
+    "observed_window_s": [
+      30,
+      180
+    ],
+    "observed_jain_of_interval_cell_prb": 0.9648462180067509,
+    "observed_mean_per_second_jain": 0.8983369805698502,
+    "audit_sha256": "0cda2cb5e0fd3c222e37787268bb8c3024631a433d86828f2adac162b21f2ec0",
+    "limitation": "Represents fixed settings of a presumed balancing app. No actual xApp is executed; balance under new mobility traces must be measured."
+  },
+  "design": {
+    "mobility_traces": 9,
+    "orders_per_trace": 2,
+    "total_jobs": 18,
+    "design_random_seed": 20261015,
+    "target_assignment": "All nine ordered TxP-cell/RET-cell combinations, shuffled before assignment to nine mobility traces. One cell per change.",
+    "txp_targets_dbm": [
+      40,
+      37,
+      33
+    ],
+    "ret_target_deg": 12.0,
+    "txp_variation": "Latin assignment gives each TxP cell each target once over its three RET-cell partners.",
+    "paired_invariants": [
+      "mobility trace",
+      "initial settings",
+      "RNG settings",
+      "TxP target cell/value",
+      "RET target cell/value",
+      "traffic configuration",
+      "duration"
+    ],
+    "paired_difference": "Only the order at 180 and 540 seconds changes.",
+    "restore": false,
+    "interpretation": "At 540 seconds the second change is added to the first. These two sequences observe order and cumulative effects; they are not isolated causal comparisons against an unchanged run.",
+    "coverage_intent": "RET angle increases; SINR or geographical coverage improvement is an outcome to measure, not assumed.",
+    "recommended_aggregation_edges_s": [
+      0,
+      180,
+      360,
+      540,
+      720,
+      900
+    ],
+    "input_matched_not_bitwise_exogenous_guarantee": "Same trace and RNG settings do not guarantee identical internal traffic draws after trajectories diverge."
+  },
+  "jobs": [
+    {
+      "job_id": "pair01_seed1405_txp_then_ret",
+      "pair_id": "pair01",
+      "trace_seed": 1405,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1405.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "5g",
+      "ret_cell": "4g1",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_5g",
+          "value": 37.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 37.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 37.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "936209d53ff6c1af3a295393510a2cc744c45d4a2ca11c25cdbdc051529528f4"
+    },
+    {
+      "job_id": "pair01_seed1405_ret_then_txp",
+      "pair_id": "pair01",
+      "trace_seed": 1405,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1405.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "5g",
+      "ret_cell": "4g1",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_5g",
+          "value": 37.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 37.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "4ef8692f823ff5dc12fefb382eaa765f2206316104718dfe367fe6a018b4b20c"
+    },
+    {
+      "job_id": "pair02_seed1406_txp_then_ret",
+      "pair_id": "pair02",
+      "trace_seed": 1406,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1406.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "5g",
+      "ret_cell": "4g2",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_5g",
+          "value": 33.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 33.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 33.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "616b89ec28119feeffe81fa717c924ef2cb4495162486816875a9f4fa88bd356"
+    },
+    {
+      "job_id": "pair02_seed1406_ret_then_txp",
+      "pair_id": "pair02",
+      "trace_seed": 1406,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1406.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "5g",
+      "ret_cell": "4g2",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_5g",
+          "value": 33.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 33.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "f5b29d586eda53cd91e714c6fc7c3131b766884009c4f4abd9e1473d2f4970ca"
+    },
+    {
+      "job_id": "pair03_seed1407_txp_then_ret",
+      "pair_id": "pair03",
+      "trace_seed": 1407,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1407.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g1",
+      "ret_cell": "4g2",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g1",
+          "value": 40.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 40.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 40.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "e316815c72bb1ae577a50728069361d6b02f9806344eb18b5e54b0dcef7d2305"
+    },
+    {
+      "job_id": "pair03_seed1407_ret_then_txp",
+      "pair_id": "pair03",
+      "trace_seed": 1407,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1407.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g1",
+      "ret_cell": "4g2",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g1",
+          "value": 40.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 40.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "1fd6b95f42947507f9af2e94d7d47a1429176fbf67f9fe607c348f9caff79c0c"
+    },
+    {
+      "job_id": "pair04_seed1408_txp_then_ret",
+      "pair_id": "pair04",
+      "trace_seed": 1408,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1408.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g1",
+      "ret_cell": "4g1",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g1",
+          "value": 33.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 33.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 33.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "db5daa4eccd8aad8f4b2f4a0efa1fbff37bce8b4f52364354eb6ec614d2dfa80"
+    },
+    {
+      "job_id": "pair04_seed1408_ret_then_txp",
+      "pair_id": "pair04",
+      "trace_seed": 1408,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1408.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g1",
+      "ret_cell": "4g1",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g1",
+          "value": 33.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 33.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "92f0c1d693d005b3a04aebd87d4ef11456afbf7e9f697f041242386054112cce"
+    },
+    {
+      "job_id": "pair05_seed1409_txp_then_ret",
+      "pair_id": "pair05",
+      "trace_seed": 1409,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1409.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "5g",
+      "ret_cell": "5g",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_5g",
+          "value": 40.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_5g",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 40.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 40.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "046d9250617bf6786be46c9e3bfbf398009f8aee3bc357b85eae47f9a68b7e9a"
+    },
+    {
+      "job_id": "pair05_seed1409_ret_then_txp",
+      "pair_id": "pair05",
+      "trace_seed": 1409,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1409.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "5g",
+      "ret_cell": "5g",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_5g",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_5g",
+          "value": 40.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 40.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "53e758beeaabaa3fa95e5d52e4b16b4d5595b9cdb9bd1928387b15ba512f7950"
+    },
+    {
+      "job_id": "pair06_seed1410_txp_then_ret",
+      "pair_id": "pair06",
+      "trace_seed": 1410,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1410.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g2",
+      "ret_cell": "5g",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g2",
+          "value": 33.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_5g",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 33.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 33.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "63d556373ea878ebe1aaf69dbe61f20eee9dd158d298d16a1dfc1a24c64d3571"
+    },
+    {
+      "job_id": "pair06_seed1410_ret_then_txp",
+      "pair_id": "pair06",
+      "trace_seed": 1410,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1410.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g2",
+      "ret_cell": "5g",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_5g",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g2",
+          "value": 33.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 33.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "004b1a48fd4dbe976c331ec705e80100aae712b7d08073fca3c7f7196f65d1bb"
+    },
+    {
+      "job_id": "pair07_seed1411_txp_then_ret",
+      "pair_id": "pair07",
+      "trace_seed": 1411,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1411.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g2",
+      "ret_cell": "4g1",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g2",
+          "value": 40.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 40.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 40.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "d7d8da4b9c84ad32cc92f2ca6359882c9d0fe98986e22e74ca2989d93bc04774"
+    },
+    {
+      "job_id": "pair07_seed1411_ret_then_txp",
+      "pair_id": "pair07",
+      "trace_seed": 1411,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1411.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g2",
+      "ret_cell": "4g1",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g2",
+          "value": 40.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 40.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "f293691cef262ec33b5ebff48c2cce9ac11825ea704be520bea20ad532dd5994"
+    },
+    {
+      "job_id": "pair08_seed1412_txp_then_ret",
+      "pair_id": "pair08",
+      "trace_seed": 1412,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1412.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g2",
+      "ret_cell": "4g2",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g2",
+          "value": 37.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 37.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 37.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "c67aa017bfb4fc139136bfc4a5e5d676b2218840c5b23ad1b71a13e22b837af7"
+    },
+    {
+      "job_id": "pair08_seed1412_ret_then_txp",
+      "pair_id": "pair08",
+      "trace_seed": 1412,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1412.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g2",
+      "ret_cell": "4g2",
+      "same_target_cell": true,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_4g2",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g2",
+          "value": 37.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 37.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 12.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "d5c40a81bd9789547a94d0a168d0f49842c8a8db65d4724041e76d46934f4239"
+    },
+    {
+      "job_id": "pair09_seed1413_txp_then_ret",
+      "pair_id": "pair09",
+      "trace_seed": 1413,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1413.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g1",
+      "ret_cell": "5g",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g1",
+          "value": 37.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_5g",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 37.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 37.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "8cbb4d3cc1307fb60e0b3880010c8d1ff2cc52d77a8199a95be2b1d093096b06"
+    },
+    {
+      "job_id": "pair09_seed1413_ret_then_txp",
+      "pair_id": "pair09",
+      "trace_seed": 1413,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1413.csv",
+      "order": "ret_then_txp",
+      "txp_cell": "4g1",
+      "ret_cell": "5g",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "ret_5g",
+          "value": 12.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "txp_4g1",
+          "value": 37.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 37.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 12.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "a1d023cbf859e4e890e0caf4de758b8cbe6bb907eef99c98655dedbf4bf8d337"
+    }
+  ],
+  "manifest_sha256": "868eebab69e0400d92cc5c4112ad7d97dc7d6925a9e0ffe30e2b441ebe8345ce"
+}

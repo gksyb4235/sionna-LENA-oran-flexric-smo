@@ -1,0 +1,1002 @@
+{
+  "schema": "ns3-drl-xapp-pilot-v1",
+  "created_utc": "2026-10-16T14:18:16.190922+00:00",
+  "backend_root": "/home/user/LENA-oran-flexric-smo",
+  "binary": "bin/ns3-drl-xapp-conflict",
+  "duration_s": 900,
+  "n_ues": 300,
+  "control_start_s": 180,
+  "control_interval_s": 30,
+  "rng_seed": 1,
+  "rng_run": 1,
+  "training_traces": [
+    1414,
+    1415,
+    1416
+  ],
+  "validation_traces": [
+    1417,
+    1418
+  ],
+  "test_traces": [
+    1419,
+    1420,
+    1421
+  ],
+  "baseline": {
+    "txp_dbm": 43,
+    "ret_deg": 9,
+    "cio_db": [
+      0,
+      0,
+      0
+    ],
+    "ttt_ms": 128,
+    "hys_db": 1
+  },
+  "training_status": "pilot_72_real_transitions_per_model_not_convergence_claim",
+  "maximum_jobs": 64,
+  "requested_workers": 8,
+  "jobs": [
+    {
+      "id": "train_lb_local_s101_e01",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 101,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_local_s101_e02",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 101,
+      "episode": 2,
+      "depends": [
+        "train_lb_local_s101_e01"
+      ],
+      "load_job": "train_lb_local_s101_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_local_s101_e03",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 101,
+      "episode": 3,
+      "depends": [
+        "train_lb_local_s101_e02"
+      ],
+      "load_job": "train_lb_local_s101_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_local_s101_t1417",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 101,
+      "depends": [
+        "train_lb_local_s101_e03"
+      ],
+      "load_job": "train_lb_local_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_local_s101_t1418",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 101,
+      "depends": [
+        "train_lb_local_s101_e03"
+      ],
+      "load_job": "train_lb_local_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_local_s202_e01",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 202,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_local_s202_e02",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 202,
+      "episode": 2,
+      "depends": [
+        "train_lb_local_s202_e01"
+      ],
+      "load_job": "train_lb_local_s202_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_local_s202_e03",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 202,
+      "episode": 3,
+      "depends": [
+        "train_lb_local_s202_e02"
+      ],
+      "load_job": "train_lb_local_s202_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_local_s202_t1417",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 202,
+      "depends": [
+        "train_lb_local_s202_e03"
+      ],
+      "load_job": "train_lb_local_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_local_s202_t1418",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 202,
+      "depends": [
+        "train_lb_local_s202_e03"
+      ],
+      "load_job": "train_lb_local_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s101_e01",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 101,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s101_e02",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 101,
+      "episode": 2,
+      "depends": [
+        "train_lb_guarded_s101_e01"
+      ],
+      "load_job": "train_lb_guarded_s101_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s101_e03",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 101,
+      "episode": 3,
+      "depends": [
+        "train_lb_guarded_s101_e02"
+      ],
+      "load_job": "train_lb_guarded_s101_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_guarded_s101_t1417",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 101,
+      "depends": [
+        "train_lb_guarded_s101_e03"
+      ],
+      "load_job": "train_lb_guarded_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_guarded_s101_t1418",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 101,
+      "depends": [
+        "train_lb_guarded_s101_e03"
+      ],
+      "load_job": "train_lb_guarded_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s202_e01",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 202,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s202_e02",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 202,
+      "episode": 2,
+      "depends": [
+        "train_lb_guarded_s202_e01"
+      ],
+      "load_job": "train_lb_guarded_s202_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_lb_guarded_s202_e03",
+      "phase": "train",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 202,
+      "episode": 3,
+      "depends": [
+        "train_lb_guarded_s202_e02"
+      ],
+      "load_job": "train_lb_guarded_s202_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_guarded_s202_t1417",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 202,
+      "depends": [
+        "train_lb_guarded_s202_e03"
+      ],
+      "load_job": "train_lb_guarded_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_lb_guarded_s202_t1418",
+      "phase": "validation",
+      "app": "lb",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 202,
+      "depends": [
+        "train_lb_guarded_s202_e03"
+      ],
+      "load_job": "train_lb_guarded_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s101_e01",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 101,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s101_e02",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 101,
+      "episode": 2,
+      "depends": [
+        "train_mo_local_s101_e01"
+      ],
+      "load_job": "train_mo_local_s101_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s101_e03",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 101,
+      "episode": 3,
+      "depends": [
+        "train_mo_local_s101_e02"
+      ],
+      "load_job": "train_mo_local_s101_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_local_s101_t1417",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 101,
+      "depends": [
+        "train_mo_local_s101_e03"
+      ],
+      "load_job": "train_mo_local_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_local_s101_t1418",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 101,
+      "depends": [
+        "train_mo_local_s101_e03"
+      ],
+      "load_job": "train_mo_local_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s202_e01",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 202,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s202_e02",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 202,
+      "episode": 2,
+      "depends": [
+        "train_mo_local_s202_e01"
+      ],
+      "load_job": "train_mo_local_s202_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_local_s202_e03",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 202,
+      "episode": 3,
+      "depends": [
+        "train_mo_local_s202_e02"
+      ],
+      "load_job": "train_mo_local_s202_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_local_s202_t1417",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 202,
+      "depends": [
+        "train_mo_local_s202_e03"
+      ],
+      "load_job": "train_mo_local_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_local_s202_t1418",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 202,
+      "depends": [
+        "train_mo_local_s202_e03"
+      ],
+      "load_job": "train_mo_local_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s101_e01",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 101,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s101_e02",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 101,
+      "episode": 2,
+      "depends": [
+        "train_mo_guarded_s101_e01"
+      ],
+      "load_job": "train_mo_guarded_s101_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s101_e03",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 101,
+      "episode": 3,
+      "depends": [
+        "train_mo_guarded_s101_e02"
+      ],
+      "load_job": "train_mo_guarded_s101_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_guarded_s101_t1417",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 101,
+      "depends": [
+        "train_mo_guarded_s101_e03"
+      ],
+      "load_job": "train_mo_guarded_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_guarded_s101_t1418",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 101,
+      "depends": [
+        "train_mo_guarded_s101_e03"
+      ],
+      "load_job": "train_mo_guarded_s101_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s202_e01",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1414,
+      "learning_seed": 202,
+      "episode": 1,
+      "depends": [],
+      "load_job": null,
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s202_e02",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1415,
+      "learning_seed": 202,
+      "episode": 2,
+      "depends": [
+        "train_mo_guarded_s202_e01"
+      ],
+      "load_job": "train_mo_guarded_s202_e01",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "train_mo_guarded_s202_e03",
+      "phase": "train",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "train",
+      "trace_seed": 1416,
+      "learning_seed": 202,
+      "episode": 3,
+      "depends": [
+        "train_mo_guarded_s202_e02"
+      ],
+      "load_job": "train_mo_guarded_s202_e02",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_guarded_s202_t1417",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1417,
+      "learning_seed": 202,
+      "depends": [
+        "train_mo_guarded_s202_e03"
+      ],
+      "load_job": "train_mo_guarded_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "val_mo_guarded_s202_t1418",
+      "phase": "validation",
+      "app": "mo",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1418,
+      "learning_seed": 202,
+      "depends": [
+        "train_mo_guarded_s202_e03"
+      ],
+      "load_job": "train_mo_guarded_s202_e03",
+      "lb_start_s": 180,
+      "mo_start_s": 180
+    },
+    {
+      "id": "test_none_t1419",
+      "phase": "test",
+      "arm": "none",
+      "mode": "none",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_local_t1419",
+      "phase": "test",
+      "arm": "lb_local",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_local_t1419",
+      "phase": "test",
+      "arm": "mo_local",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_local_t1419",
+      "phase": "test",
+      "arm": "both_local",
+      "mode": "both",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_guarded_t1419",
+      "phase": "test",
+      "arm": "lb_guarded",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_guarded_t1419",
+      "phase": "test",
+      "arm": "mo_guarded",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_guarded_t1419",
+      "phase": "test",
+      "arm": "both_guarded",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_heuristic_both_t1419",
+      "phase": "test",
+      "arm": "heuristic_both",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "heuristic",
+      "trace_seed": 1419,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_none_t1420",
+      "phase": "test",
+      "arm": "none",
+      "mode": "none",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_local_t1420",
+      "phase": "test",
+      "arm": "lb_local",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_local_t1420",
+      "phase": "test",
+      "arm": "mo_local",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_local_t1420",
+      "phase": "test",
+      "arm": "both_local",
+      "mode": "both",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_guarded_t1420",
+      "phase": "test",
+      "arm": "lb_guarded",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_guarded_t1420",
+      "phase": "test",
+      "arm": "mo_guarded",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_guarded_t1420",
+      "phase": "test",
+      "arm": "both_guarded",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_heuristic_both_t1420",
+      "phase": "test",
+      "arm": "heuristic_both",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "heuristic",
+      "trace_seed": 1420,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_none_t1421",
+      "phase": "test",
+      "arm": "none",
+      "mode": "none",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_local_t1421",
+      "phase": "test",
+      "arm": "lb_local",
+      "mode": "lb",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_local_t1421",
+      "phase": "test",
+      "arm": "mo_local",
+      "mode": "mo",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_local_t1421",
+      "phase": "test",
+      "arm": "both_local",
+      "mode": "both",
+      "reward": "local",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_lb_guarded_t1421",
+      "phase": "test",
+      "arm": "lb_guarded",
+      "mode": "lb",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_mo_guarded_t1421",
+      "phase": "test",
+      "arm": "mo_guarded",
+      "mode": "mo",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_both_guarded_t1421",
+      "phase": "test",
+      "arm": "both_guarded",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "eval",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    },
+    {
+      "id": "test_heuristic_both_t1421",
+      "phase": "test",
+      "arm": "heuristic_both",
+      "mode": "both",
+      "reward": "guarded",
+      "policy": "heuristic",
+      "trace_seed": 1421,
+      "learning_seed": 909,
+      "depends": [],
+      "lb_start_s": 180,
+      "mo_start_s": 540
+    }
+  ]
+}

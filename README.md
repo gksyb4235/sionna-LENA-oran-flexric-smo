@@ -22,6 +22,13 @@ Sionna RT는 별도 서버가 아니라 pybind11을 통해 ns-3 프로세스 안
 현재 `scratch/khu-real-nr-sionna.cc`에서 GUI, E2 접속, KPI 저장,
 A3 RSRP handover 및 TTT/HYS sweep을 함께 사용할 수 있습니다.
 
+### 예약 변경 데이터 수집 및 분산 sweep
+
+[SWEEP.md](SWEEP.md)에 git pull 후 준비, 500개 시나리오의 9대 분할,
+재개와 결과 검증 절차를 정리했습니다. 진입점은
+`python3 scripts/conflict_sweep.py setup --build`입니다.
+실험별 위치와 보존 기준은 [experiments/README.md](experiments/README.md)를 봅니다.
+
 ### AGORA: GNN 추천안의 실제 RIC 적용
 
 [AGORA 실행 안내](AGORA.md)에 UI 후보 선택, FlexRIC/E2 제어, 셀별 RET 캐시,

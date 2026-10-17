@@ -6,9 +6,10 @@ over the continuous action space or causal validity of the frozen model.
 """
 
 from copy import deepcopy
-from itertools import product
+from itertools import combinations, product
 import math
 from .contracts import CELLS, DOMAINS
+from .search_limits import MAX_BATCH_SIZE
 
 AXES = ("time", "intensity", "cell")
 
@@ -154,8 +155,8 @@ class AxisSearch:
                         "candidate_key": self.key(plan),
                     }
                 )
-        # Put every applicable axis in the first tensor batch even for compound
-        # requests with more than 48 total baseline alternatives.
+        # Start with all applicable axes, then complete every single-cell
+        # magnitude/delay combination before allowing the search to stop.
         groups = [list(time_plans), list(intensity), list(locations)]
         interleaved = []
         while any(groups):
@@ -182,23 +183,84 @@ class AxisSearch:
                 if delay != self.origin_delay:
                     axes.append("time")
                 combined.append(self.plan(magnitude["changes"], delay, axes))
-        self.combined = self.deduplicate(
+        expanded = self.deduplicate(
             combined, [self.key(self.base)] + [self.key(p) for p in self.first]
         )
+        self.first = self.deduplicate(self.first + expanded, [self.key(self.base)])
+        self.combined = self._joint_txp_plans()
+
+    def _joint_txp_plans(self):
+        """Distribute one requested TxP change across two or three allowed cells.
+
+        Sum of absolute dBm changes cannot exceed the original dB-change budget.
+        This is a control-distance constraint, not equivalent RF energy savings.
+        """
+        if len(self.changes) != 1:
+            return []
+        source, target = next(iter(self.changes.items()))
+        if not source.startswith("txp_"):
+            return []
+        delta = target - self.current[source]
+        domain = self.policy["cell_ric_domains"][source.split("_", 1)[1]]
+        levels = {}
+        for cell in self.intent["allowed_cells"]:
+            if self.policy["cell_ric_domains"][cell] != domain:
+                continue
+            key = "txp_" + cell
+            bound = max(DOMAINS[key][0], min(DOMAINS[key][-1], self.current[key] + delta))
+            values = self.strengths(key, bound)
+            if self.policy["allow_continuous_txp"] or bound in DOMAINS[key]:
+                values.append(bound)
+            values = sorted(set(v for v in values if (v - self.current[key]) * delta > 0))
+            if values:
+                levels[key] = values
+        plans = []
+        for size in range(2, len(levels) + 1):
+            for keys in combinations(levels, size):
+                for values in product(*(levels[k] for k in keys)):
+                    if sum(abs(v - self.current[k]) for k, v in zip(keys, values)) > abs(delta) + 1e-7:
+                        continue
+                    for delay in self.delays:
+                        plans.append(self.plan(dict(zip(keys, values)), delay, ["joint_txp"]))
+        return self.deduplicate(plans)
+
+    def joint_refinement_remaining(self):
+        evaluated = len(self.combined) - len(self.pending("combinations"))
+        return max(0, min(MAX_BATCH_SIZE, len(self.combined)) - evaluated)
 
     def record(self, evaluation):
         for row in evaluation["all_candidates"]:
             if row.get("status") != "invalid":
                 self.seen[self.key(row)] = row
 
-    def pending(self, stage):
+    def pending(self, stage, base=None):
         pool = self.first if stage == "axes" else self.combined
-        return [deepcopy(plan) for plan in pool if self.key(plan) not in self.seen]
+        pending = [deepcopy(plan) for plan in pool if self.key(plan) not in self.seen]
+        if stage == "axes" or not pending:
+            return pending
+        # Prioritize the agent's selected pivot while covering each cell subset
+        # and delay. The next batch therefore depends on the previous observation.
+        pivot = dict(self.current, **(base or {}).get("changes", self.changes))
+        groups = {}
+        for plan in pending:
+            group = (tuple(sorted(plan["changes"])), plan["delay_s"])
+            groups.setdefault(group, []).append(plan)
+        for group in groups.values():
+            group.sort(key=lambda p: (
+                sum(abs(dict(self.current, **p["changes"])[k] - pivot[k]) for k in self.current),
+                self.key(p),
+            ))
+        ordered = []
+        for i in range(max(map(len, groups.values()))):
+            ordered.extend(group[i] for group in groups.values() if i < len(group))
+        return ordered
 
     def next_stage(self, all_expectations_met=False):
         if self.pending("axes"):
             return "axes"
-        if not all_expectations_met and self.pending("combinations"):
+        if self.pending("combinations") and (
+            not all_expectations_met or self.joint_refinement_remaining()
+        ):
             return "combinations"
         return None
 
@@ -235,15 +297,19 @@ class AxisSearch:
             "independent_axes_complete": not self.pending("axes"),
             "combination_candidates": len(self.combined),
             "combinations_evaluated": len(self.combined) - len(self.pending("combinations")),
+            "single_cell_grid_candidates": len(self.first),
+            "single_cell_grid_evaluated": len(self.first) - len(self.pending("axes")),
+            "joint_refinement_required": min(MAX_BATCH_SIZE, len(self.combined)),
+            "joint_refinement_remaining": self.joint_refinement_remaining(),
             "next_stage": stage,
             "stop_allowed": stage is None or not budget_available,
             "stop_reason": "budget_exhausted_with_unsearched_candidates"
             if stage and not budget_available
-            else "goal_met_after_all_axes_checked"
+            else "goal_met_after_broad_and_joint_search"
             if stage is None and all_expectations_met
             else "declared_candidate_grid_exhausted"
             if stage is None
             else "search_incomplete",
-            "scope": "Trained control values plus weaker integer-dBm TxP values when interpolation is enabled. Each compound-request alternative weakens or relocates one control while holding the others as requested; each is combined with supported delays. This finite grid does not exhaust joint changes to multiple controls or all continuous values.",
-            "execution": "All three applicable axes share one vectorized GNN batch when they fit the 48-candidate limit",
+            "scope": "Complete finite single-control magnitude/cell/delay grid first; for a single TxP request, then refine two/three-cell allocations in the same direction and RIC domain, with sum(abs(delta_dBm)) <= the requested change. At least one joint batch is checked when available. Unsearched joint candidates remain explicit; this is not exhaustive continuous optimization.",
+            "execution": f"Shared-history vectorized GNN, up to {MAX_BATCH_SIZE} candidates per batch",
         }

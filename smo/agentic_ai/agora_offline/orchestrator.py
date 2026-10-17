@@ -23,6 +23,8 @@ from .planning import alternatives, parse_deterministic
 from .search import AxisSearch
 from .provider import Provider, function, public_configuration
 from .settings import STATE
+from .tracing import observer
+from .search_limits import MAX_BATCH_SIZE, MAX_BATCHES, MAX_CANDIDATES
 
 
 def compact_snapshot(snapshot):
@@ -146,8 +148,19 @@ def compact_tool_result(name, result):
 def compact_evaluation(evaluation):
     finalists = evaluation["top_candidates"] or evaluation["infeasible_diagnostics"]
     rows = [compact_candidate(row) for row in finalists[:2]]
+    groups = {}
+    for candidate in evaluation["all_candidates"]:
+        if candidate.get("status") == "invalid":
+            continue
+        group = tuple(sorted(candidate.get("changes", {})))
+        score = (not candidate["feasible"], candidate["violation_count"],
+                 candidate["normalized_violation"], -candidate["goal_achievement"],
+                 candidate["request_deviation"])
+        if group not in groups or score < groups[group][0]:
+            groups[group] = (score, candidate)
     return {
         "candidates": rows,
+        "best_by_control_group": [compact_candidate(v[1]) for v in list(groups.values())[:10]],
         "top_candidate_ids": [c["candidate_id"] for c in evaluation["top_candidates"]],
         "feasible_count": evaluation["feasible_count"],
         "evaluated_count": evaluation["evaluated_count"],
@@ -157,7 +170,7 @@ def compact_evaluation(evaluation):
             if c.get("status") == "invalid"
         ],
         "selection_rule": evaluation["selection_rule"],
-        "compression": "Up to two feasible recommendations or infeasible diagnostics; full batch retained in UI audit",
+        "compression": "Top two plus best candidate per changed-control group (up to ten groups); full batch retained in UI audit",
     }
 
 
@@ -239,11 +252,11 @@ INTENT_TOOL = function(
 )
 SEARCH_TOOL = function(
     "estimate_batch",
-    "Evaluate a vectorized batch. The server adds mandatory time/intensity/cell grid candidates so no axis or weaker supported value is silently omitted. Your proposals supplement this grid. Subsequent calls evaluate untested combinations until a goal-meeting feasible candidate is found or the declared grid/budget is exhausted. Results include actual coverage, top2 candidates and numeric analysis. Preserve action type/direction/magnitude.",
+    "Evaluate up to128 candidates in one vectorized batch. First call axis=all with candidates=[] to cover the complete single-cell magnitude-by-delay grid on every allowed cell; do not manually list only endpoints. Read best_by_control_group, numeric analysis and search_coverage. When next_stage=combinations, call axis=combined with a promising base_candidate_id from the previous result; the server evaluates joint two/three-cell TxP allocations around that pivot, with your explicit joint proposals first. At least one joint batch follows the full single-cell grid when available, even if a single-cell candidate already meets the goal. Joint TxP keeps direction/domain and sum(abs(delta_dBm)) within the original request budget. Never introduce TTT/HYS/RET/CIO into a TxP-only request. Stop only when search_coverage.stop_allowed is true.",
     {
         "axis": {"type": "string", "enum": ["all", "time", "intensity", "cell", "combined"]},
         "base_candidate_id": {"type": "string"},
-        "values": {"type": "array", "items": {"type": "number"}, "maxItems": 10},
+        "values": {"type": "array", "items": {"type": "number"}, "maxItems": 128},
         "cells": {"type": "array", "items": {"type": "string", "enum": list(CELLS)}, "maxItems": 3},
         "delays_s": {
             "type": "array",
@@ -257,7 +270,7 @@ SEARCH_TOOL = function(
         },
         "candidates": {
             "type": "array",
-            "maxItems": 48,
+            "maxItems": MAX_BATCH_SIZE,
             "items": {"type": "object"},
             "description": "Optional explicit plans: changes object, delay_s, horizon_s. Use this to mix all three axes in one batch.",
         },
@@ -301,6 +314,7 @@ class Session:
         self.shared_evidence = []
         self.search = None
         self.directory = STATE / "sessions" / self.id
+        self.tracing = None
 
     async def emit(self, kind, agent="system", content="", data=None):
         if self.cancelled and kind not in ("done", "error"):
@@ -326,6 +340,7 @@ class Session:
             "request": self.body,
             "result": self.result,
             "events": self.events,
+            "tracing": self.tracing,
         }
 
     def persist(self):
@@ -335,6 +350,13 @@ class Session:
         )
 
     async def invoke(self, name, arguments, role, action):
+        with observer().span(name, run_type="tool", inputs=arguments,
+                             metadata={"agent_role": role, "session_id": self.id}) as span:
+            result = await self._invoke(name, arguments, role, action)
+            span.finish({"result": result})
+            return result
+
+    async def _invoke(self, name, arguments, role, action):
         await self.emit("tool_call", role, name, {"tool": name, "arguments": arguments})
         begin = time.perf_counter()
         try:
@@ -366,11 +388,11 @@ class Session:
         return result
 
     async def evaluate(self, plans, role="mitigation"):
-        if not plans or len(plans) > 48 or self.candidate_count + len(plans) > 160:
+        if not plans or len(plans) > MAX_BATCH_SIZE or self.candidate_count + len(plans) > MAX_CANDIDATES:
             raise ValueError(
-                "Each batch must contain1..48 candidates, with at most160 total per session"
+                f"Each batch must contain 1..{MAX_BATCH_SIZE} candidates, with at most {MAX_CANDIDATES} total per session"
             )
-        if self.batch_count >= 5:
+        if self.batch_count >= MAX_BATCHES:
             raise ValueError(
                 "At most five batches (original plus four alternative rounds) are allowed"
             )
@@ -415,7 +437,7 @@ class Session:
     def search_report(self):
         feasible, _ = self.ranked()
         met = bool(feasible and feasible[0]["all_expectations_met"])
-        return self.search.report(met, self.batch_count < 5 and self.candidate_count < 160)
+        return self.search.report(met, self.batch_count < MAX_BATCHES and self.candidate_count < MAX_CANDIDATES)
 
     async def publish_search_report(self):
         report = self.search_report()
@@ -468,7 +490,7 @@ class Session:
                 "source_event_sequences": [e["source_event_seq"] for e in evidence],
                 "sha256": hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest(),
             },
-            "instructions": "Use estimate_batch to evaluate all three independent axes together. Read coverage and numeric analysis. Continue with untested combinations when goals remain unmet. Do not conclude no feasible plan or offer optional future work while search_coverage.stop_allowed is false. Feasibility claims apply only to evaluated candidates.",
+            "instructions": "Use estimate_batch axis=all, candidates=[] for broad single-cell magnitude/cell/delay coverage. Read per-control-group results and Analyze. Then use axis=combined with a promising evaluated base_candidate_id for secondary joint TxP refinement. Complete the required joint batch even if a single-cell candidate is feasible. Continue while stop_allowed=false. No new control family is authorized by a TxP-only request; joint TxP shares the original total absolute dB-change budget. Feasibility applies only to evaluated candidates.",
         }
 
         async def delivered():
@@ -565,9 +587,9 @@ class Session:
                     "search_coverage": report,
                     "message": "Declared search is complete; use the evaluated result",
                 }
-            required = self.search.pending(stage)
-            limit = min(48, 160 - self.candidate_count)
-            if self.batch_count >= 5 or limit <= 0:
+            required = self.search.pending(stage, self.plan_index[base_id])
+            limit = min(MAX_BATCH_SIZE, MAX_CANDIDATES - self.candidate_count)
+            if self.batch_count >= MAX_BATCHES or limit <= 0:
                 return {
                     "search_coverage": report,
                     "message": "Search budget exhausted; remaining candidates are explicitly unsearched",
@@ -575,7 +597,13 @@ class Session:
             # Mandatory coverage takes precedence over optional LLM proposals.
             # Actual parameter vectors deduplicate repeats across all rounds.
             proposed_count = len(plans)
-            plans = self.search.deduplicate(required + plans, self.search.seen)[:limit]
+            if stage == "combinations":
+                # Joint exploration follows the first observation. Accept bounded
+                # joint proposals first, then fill the batch around the chosen pivot.
+                proposals = [p for p in plans if len(p.get("changes", {})) >= 2][:MAX_BATCH_SIZE // 4]
+                plans = self.search.deduplicate(proposals + required, self.search.seen)[:limit]
+            else:
+                plans = self.search.deduplicate(required + plans, self.search.seen)[:limit]
             await self.emit(
                 "status",
                 role,
@@ -623,6 +651,15 @@ class Session:
         raise ValueError("Unknown or unauthorized tool")
 
     async def llm_role(self, role, context, tools=None, forced=None, turns=1):
+        with observer().span(
+            f"Agent: {role}", inputs={"context": context, "max_turns": turns},
+            metadata={"agent_role": role, "session_id": self.id},
+        ) as span:
+            result = await self._llm_role(role, context, tools, forced, turns)
+            span.finish({"public_summary_or_intent": result})
+            return result
+
+    async def _llm_role(self, role, context, tools=None, forced=None, turns=1):
         messages = [{"role": "user", "content": json.dumps(context, ensure_ascii=False)}]
         next_forced = forced
         for turn in range(turns):
@@ -702,7 +739,7 @@ class Session:
                         # summarizing; candidate proposals are not evidence.
                         message = await self.provider.complete(role, messages, self.emit)
                         return message.get("content", "")
-            if self.batch_count >= 5 and role == "mitigation":
+            if self.batch_count >= MAX_BATCHES and role == "mitigation":
                 break
         if role == "analyst" and tools:
             message = await self.provider.complete(role, messages, self.emit)
@@ -770,6 +807,24 @@ class Session:
         )
 
     async def run(self):
+        telemetry = observer()
+        with telemetry.span(
+            "AGORA decision", root=True,
+            inputs={"request": self.body, "policy": self.settings["policy"]},
+            metadata={"session_id": self.id, "run_id": self.body["run_id"],
+                      "issue_time_s": self.body["issue_time_s"], "mode": self.body["mode"],
+                      "framework": "AGORA", "ns3_validated": False},
+        ) as span:
+            self.tracing = span.identity()
+            await self._run()
+            errors = [e["content"] for e in self.events if e["type"] == "error"
+                      and not (e.get("data") or {}).get("recoverable")]
+            span.finish({"status": self.status, "result": self.result},
+                        error="; ".join(errors) if self.status == "failed" else
+                        "Session cancelled" if self.status == "cancelled" else None)
+        await asyncio.to_thread(telemetry.flush)
+
+    async def _run(self):
         self.status = "running"
         try:
             await self.emit(

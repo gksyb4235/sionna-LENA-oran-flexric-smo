@@ -26,6 +26,16 @@ class WorkbenchTests(unittest.TestCase):
     def setUpClass(cls):
         cls.runtime = Runtime()
 
+    def test_batch_endpoint_accepts_128_and_rejects_129(self):
+        with TestClient(server.app) as client:
+            body = dict(run_id="fixture", issue_time_s=180, plans=[{} for _ in range(128)])
+            with patch.object(server.runtime, "predict_batch", return_value=[]) as predict:
+                self.assertEqual(client.post("/api/predict/batch", json=body).status_code, 200)
+                self.assertEqual(len(predict.call_args.args[2]), 128)
+                body["plans"].append({})
+                self.assertEqual(client.post("/api/predict/batch", json=body).status_code, 422)
+                self.assertEqual(predict.call_count, 1)
+
     def test_parser_preserves_delayed_duration_and_units(self):
         parsed = parse_deterministic("90초 뒤부터 3분 동안 Cell 5G TxP 43 dBm -> 33 dBm", {}, 90)
         self.assertEqual((parsed["horizon_s"], parsed["delay_s"]), (180, 90))

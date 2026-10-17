@@ -49,6 +49,7 @@
  * that start and finish in the same session contribute to HO/ping-pong counts.
  */
 
+#include "scheduled-parameter-control.h"
 #include "ns3/antenna-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/buildings-module.h"
@@ -2156,6 +2157,8 @@ main(int argc, char* argv[])
     std::string cellTttMsSpec;
     std::string cellRetTiltDegSpec;
     std::string cellRetBearingDegSpec;
+    std::string parameterSchedule;
+    std::string parameterScheduleRetCacheRoot = "scenarios/khu-real/ret_caches";
 
     std::string guiSrc;
     std::string guiHost = "localhost";
@@ -2264,7 +2267,15 @@ main(int argc, char* argv[])
     cmd.AddValue("cellKpiCsvPath",
                 "Output CSV path for per-second cell KPI history",
                 cellKpiCsvPath);
+    cmd.AddValue("parameterSchedule",
+                 "CSV of permanent changes: time_s,parameter,value",
+                 parameterSchedule);
+    cmd.AddValue("parameterScheduleRetCacheRoot",
+                 "Root containing exact tilt_Ndeg Sionna caches",
+                 parameterScheduleRetCacheRoot);
     cmd.Parse(argc, argv);
+    const auto parameterEvents =
+        ScheduledParameterControl::Load(parameterSchedule, simTime.GetSeconds());
 
     const auto cellTxPowerDbm = ParseNamedDoubleMap(cellTxPowerDbmSpec, "cellTxPowerDbm");
     const auto cellCioDb = ParseNamedDoubleMap(cellCioDbSpec, "cellCioDb");
@@ -3113,12 +3124,24 @@ main(int argc, char* argv[])
     }
 
     std::map<std::string, Ptr<NrGnbNetDevice>> agoraCells;
+    std::map<std::string, std::vector<Ptr<SionnaLookupChannelModel>>> scheduledLookups;
     for(uint32_t i=0;i<gnbNetDev.GetN();++i)
     {
         const std::string name=gnbPositions[i].externalId;
         const std::string label=name=="gNB_5G"?"5g":name=="gNB_4G_1"?"4g1":name=="gNB_4G_2"?"4g2":"cell"+std::to_string(i);
         agoraCells[label]=DynamicCast<NrGnbNetDevice>(gnbNetDev.Get(i));
+        const auto& cellBwps = GetBandKind(name) == NrBandKind::LOW_18_GHZ ? bwps18 : bwps35;
+        for (const auto& bwp : cellBwps)
+        {
+            const auto loss = bwp.get()->GetChannel()->GetPhasedArraySpectrumPropagationLossModel();
+            const auto sionna = loss->GetObject<SionnaRtSpectrumPropagationLossModel>();
+            scheduledLookups[label].push_back(
+                DynamicCast<SionnaLookupChannelModel>(sionna->GetChannelModel()));
+        }
     }
+    const auto scheduledParameters = ScheduledParameterControl::Install(
+        parameterEvents, agoraCells, scheduledLookups, parameterScheduleRetCacheRoot,
+        (runDirectory / "parameter_changes.csv").string());
     AgoraRicController::InstallFromEnvironment(agoraCells,simTime.GetSeconds());
 
     Simulator::Stop(simTime);

@@ -23,6 +23,7 @@ from .applications import application_for
 from .deployment_queue import enqueue, get_receipt, list_receipts, QueueConflict
 from .provider import public_configuration
 from .settings import ROOT, STATE, read_settings, write_settings
+from .search_limits import MAX_BATCH_SIZE, MAX_ALTERNATIVE_ROUNDS, MAX_CANDIDATES
 
 runtime = None
 sessions = {}
@@ -90,9 +91,9 @@ async def status():
             "horizons_s": [90, 180],
             "delays_s": [0, 30, 60, 90],
             "issue_time_s": [30, 720],
-            "max_batch_size": 48,
-            "max_alternative_rounds": 4,
-            "max_candidates": 160,
+            "max_batch_size": MAX_BATCH_SIZE,
+            "max_alternative_rounds": MAX_ALTERNATIVE_ROUNDS,
+            "max_candidates": MAX_CANDIDATES,
         },
         "legacy_overview_url": "http://127.0.0.1:8773",
         "legacy_agent_dashboard_url": "http://127.0.0.1:18080",
@@ -349,8 +350,8 @@ async def export(ident: str):
 
 @app.post("/api/estimate/batch")
 async def estimate(body: dict):
-    if not isinstance(body.get("candidates"), list) or not 1 <= len(body["candidates"]) <= 48:
-        raise HTTPException(422, "Supply1..48 candidates")
+    if not isinstance(body.get("candidates"), list) or not 1 <= len(body["candidates"]) <= MAX_BATCH_SIZE:
+        raise HTTPException(422, f"Supply1..{MAX_BATCH_SIZE} candidates")
     required = ("run_id", "issue_time_s", "intent", "requested_plan", "candidates")
     if any(k not in body for k in required):
         raise HTTPException(422, "Missing one of: " + ", ".join(required))
@@ -362,8 +363,8 @@ async def estimate(body: dict):
 
 @app.post("/api/predict/batch")
 async def predict(body: dict):
-    if not isinstance(body.get("plans"), list) or not 1 <= len(body["plans"]) <= 48:
-        raise HTTPException(422, "Supply1..48 plans")
+    if not isinstance(body.get("plans"), list) or not 1 <= len(body["plans"]) <= MAX_BATCH_SIZE:
+        raise HTTPException(422, f"Supply1..{MAX_BATCH_SIZE} plans")
     if "run_id" not in body or "issue_time_s" not in body:
         raise HTTPException(422, "run_id and issue_time_s are required")
     return {

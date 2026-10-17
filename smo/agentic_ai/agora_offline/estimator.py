@@ -228,6 +228,10 @@ class Estimator:
     def _deviation(self, candidate, requested, current):
         """Match changed controls to requested controls without increasing magnitude."""
         sources = requested["changes"]
+        if len(sources) == 1 and len(candidate["changes"]) > 1:
+            source = next(iter(sources))
+            if source.startswith("txp_") and all(k.startswith("txp_") for k in candidate["changes"]):
+                return self._distributed_txp_deviation(candidate, requested, current, source)
         unmatched = set(sources)
         mappings = []
         ordered = sorted(candidate["changes"], key=lambda key: (key not in sources, key))
@@ -285,6 +289,31 @@ class Estimator:
             timing=timing,
             mappings=mappings,
         )
+
+    def _distributed_txp_deviation(self, candidate, requested, current, source):
+        delta = requested["parameters"][source] - current[source]
+        budget = abs(delta)
+        domains = self.policy["cell_ric_domains"]
+        source_cell = _control_cell(source)
+        allocated = 0.0
+        mappings = []
+        for key, value in candidate["changes"].items():
+            step = value - current[key]
+            if step * delta <= 0 or domains[_control_cell(key)] != domains[source_cell]:
+                raise ContractError("Joint TxP controls must preserve direction and RIC domain")
+            allocated += abs(step)
+            mappings.append(dict(requested_control=source, candidate_control=key,
+                                 allocated_fraction=abs(step) / budget,
+                                 location_change=int(_control_cell(key) != source_cell)))
+        if allocated > budget + 1e-7:
+            raise ContractError("Joint TxP sum(abs(delta_dBm)) exceeds requested change budget")
+        strength = max(0.0, 1 - allocated / budget)
+        location = sum(m["location_change"] for m in mappings)
+        timing = abs(candidate["delay_s"] - requested["delay_s"]) / self.policy["delay_normalizer_s"]
+        return dict(total=strength + location + timing, strength=strength,
+                    location=location, timing=timing, mappings=mappings,
+                    allocation_budget_db=budget, allocation_used_db=allocated,
+                    allocation_semantics="Control-change budget in dB, not equivalent energy savings")
 
     def _margin(self, entry, horizon, delay, multiplier):
         if multiplier == 0:

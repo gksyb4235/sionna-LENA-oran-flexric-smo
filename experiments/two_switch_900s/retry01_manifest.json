@@ -1,0 +1,157 @@
+{
+  "schema": "ns3-two-switch-batch-v1",
+  "experiment_id": "two_switch_900s_20261015_retry01",
+  "created_at_utc": "2026-10-15T13:33:41.050831+00:00",
+  "execution_mode": "pure_ns3_predetermined_permanent_parameter_schedule",
+  "framework_decisions_used": false,
+  "external_ric_required": false,
+  "backend_root": "/home/user/LENA-oran-flexric-smo",
+  "binary": "build/scratch/ns3.48-khu-real-dual-nr-sionna-final-default",
+  "source_files": [
+    "scratch/khu-real-dual-nr-sionna-final.cc",
+    "scratch/scheduled-parameter-control.h",
+    "src/spectrum/model/sionna-lookup-channel-model.cc",
+    "src/spectrum/model/sionna-lookup-channel-model.h"
+  ],
+  "ret_cache_root": "scenarios/khu-real/ret_caches",
+  "output_root": "scenarios/results/two_switch_900s_20261015_retry01",
+  "duration_s": 900,
+  "kpi_interval_s": 1,
+  "n_ues": 300,
+  "rng_seed": 1,
+  "rng_run": 1,
+  "requested_workers": 1,
+  "baseline_parameters": {
+    "txp_5g": 43.0,
+    "txp_4g1": 43.0,
+    "txp_4g2": 43.0,
+    "ret_5g": 9.0,
+    "ret_4g1": 9.0,
+    "ret_4g2": 9.0,
+    "cio_5g": 6.0,
+    "cio_4g1": 0.0,
+    "cio_4g2": -1.0,
+    "ttt_ms": 512.0,
+    "hys_db": 1.0
+  },
+  "baseline_source": {
+    "api_run_id": "gnn_0197",
+    "final_dataset_run_id": "gnn_0184",
+    "selection": "Observed training prefix only; balanced initial TxP/RET with per-cell action headroom.",
+    "observed_window_s": [
+      30,
+      180
+    ],
+    "observed_jain_of_interval_cell_prb": 0.9648462180067509,
+    "observed_mean_per_second_jain": 0.8983369805698502,
+    "audit_sha256": "0cda2cb5e0fd3c222e37787268bb8c3024631a433d86828f2adac162b21f2ec0",
+    "limitation": "Represents fixed settings of a presumed balancing app. No actual xApp is executed; balance under new mobility traces must be measured."
+  },
+  "design": {
+    "total_jobs": 1,
+    "retry_of_original_job": "pair07_seed1411_txp_then_ret",
+    "original_design_manifest": "experiments/two_switch_900s/manifest.json",
+    "paired_comparison_job_id": "pair07_seed1411_ret_then_txp",
+    "restore": false,
+    "interpretation": "One same-input retry; original design and failure remain archived. No parameter/trace/RNG changes."
+  },
+  "jobs": [
+    {
+      "job_id": "pair07_seed1411_txp_then_ret",
+      "pair_id": "pair07",
+      "trace_seed": 1411,
+      "trace_path": "scenarios/khu-real/ue_position/ue_positions_seed1411.csv",
+      "order": "txp_then_ret",
+      "txp_cell": "4g2",
+      "ret_cell": "4g1",
+      "same_target_cell": false,
+      "actions": [
+        {
+          "time_s": 180,
+          "parameter": "txp_4g2",
+          "value": 40.0
+        },
+        {
+          "time_s": 540,
+          "parameter": "ret_4g1",
+          "value": 12.0
+        }
+      ],
+      "phases": [
+        {
+          "start_s": 0,
+          "end_s_exclusive": 180,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 43.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 180,
+          "end_s_exclusive": 540,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 40.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 9.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        },
+        {
+          "start_s": 540,
+          "end_s_exclusive": 900,
+          "parameters": {
+            "txp_5g": 43.0,
+            "txp_4g1": 43.0,
+            "txp_4g2": 40.0,
+            "ret_5g": 9.0,
+            "ret_4g1": 12.0,
+            "ret_4g2": 9.0,
+            "cio_5g": 6.0,
+            "cio_4g1": 0.0,
+            "cio_4g2": -1.0,
+            "ttt_ms": 512.0,
+            "hys_db": 1.0
+          }
+        }
+      ],
+      "schedule_sha256": "d7d8da4b9c84ad32cc92f2ca6359882c9d0fe98986e22e74ca2989d93bc04774"
+    }
+  ],
+  "manifest_sha256": "868eebab69e0400d92cc5c4112ad7d97dc7d6925a9e0ffe30e2b441ebe8345ce",
+  "recovery": {
+    "attempt": 2,
+    "parent_manifest_sha256": "62280f0bb9e15b7d13496e68a263917c4e26faed4d3150962dd5734ea212d4b5",
+    "original_output_root": "scenarios/results/two_switch_900s_20261015",
+    "original_returncode": -11,
+    "reason": "SIGSEGV near sim 20s before first action; bounded exact-input diagnostic reached 35s without reproducing fault. Root cause remains unresolved.",
+    "diagnostic": "experiments/two_switch_debug/exact_repro.json"
+  },
+  "expected_sha256": {
+    "build/scratch/ns3.48-khu-real-dual-nr-sionna-final-default": "7754bd21278a53054cc60cdb6e3a3b0d98ce34d383bb67dcf51bc75db12bd020",
+    "scenarios/khu-real/gnbs-ret.csv": "7976a83f75e465e82d2cc391fe3d4f0a1aa5eb42eb04ba36a952e2a7a31cead7",
+    "scenarios/khu-real/ret_caches/tilt_12deg/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5": "65f702a1a2e4a037026a18904efd9e74bb45b633351d722c7b23e509de29dbf9",
+    "scenarios/khu-real/ret_caches/tilt_9deg/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5": "5c0918bb1a7dbaaec8e754495f97d34c75cb3594c83f4ddcb3a8d2bff700dde3",
+    "scenarios/khu-real/ret_caches/tilt_9deg/sionna_rt_cache_3p5ghz_2x2_1x1_lzf.h5": "27ad232b99e5d89142b11e5e11bdf11f22ccf005b67ba55dd87490d8903d5b40",
+    "scenarios/khu-real/ue_position/ue_positions_seed1411.csv": "a47ed006aa510324ea7f93e6a547d7504f4589e38960c10612a35539d23bf98d",
+    "scratch/khu-real-dual-nr-sionna-final.cc": "ee9815a541cb744bab0ebf55628dc2601285f2de2e078d098e86c7b689256034",
+    "scratch/scheduled-parameter-control.h": "1219e0989b3443570e2ce474cc7f21c4f1fce24bacb0a86c9494f6eba0413fb7",
+    "src/spectrum/model/sionna-lookup-channel-model.cc": "b787a14150ba7243d0fbe03cf3b8642e4404406c2f7ade72aabf7af1d5b0b89a",
+    "src/spectrum/model/sionna-lookup-channel-model.h": "60f802657d09a09bdeb05fc2ed3233fc27b5c728318140f0132e6319c3371e20"
+  }
+}

@@ -300,6 +300,7 @@
       action += `, HYS ${hys} dB에서 ${hys < 5 ? Math.min(5,hys+1) : 4} dB`;
     }
     $('intent-prompt').value = `최근 ${Math.min(180,time)}초 관측 데이터를 기준으로, ${config.purpose} 목적으로 ${scope} ${action}로 변경하고 ${horizon}초간 유지하려고 합니다. 아래 편집기에서 확정한 KPI 개선 목표와 threshold 제약으로 먼저 원안 1개를 평가해 주세요. 목표 또는 제약을 충족하지 못하면 ${axes}을 배치로 비교해 예측상 목표와 제약을 충족하는 대안을 제안해 주세요.${shared ? ' TTT와 HYS는 공통 제어이므로 셀 이동은 적용하지 마세요.' : ''}${family === 'throughput' || family === 'ret' ? ' RET는 틸트 각도이며, 증감 방향의 효과는 예측으로 확인하세요.' : ''}`;
+    $('intent-prompt').value += ' 각 허용 셀의 유효 중간값과 적용 지연을 넓은 배치로 빠짐없이 확인하세요. TxP 단일 요청은 그 결과를 읽고 유망 후보를 기준으로 여러 셀에 변경량을 분산하는 조합을 후순위 배치에서 검토하세요.';
     setText('example-help', `제어 요청은 이 입력에서, KPI 목표와 threshold는 아래 편집기에서 지정합니다. ${shared ? '공통 제어 · 시간·강도 탐색.' : '셀별 제어 · 시간·강도·셀 탐색.'} 수정한 목표·제약은 예시를 바꿔도 유지합니다.`);
   }
 
@@ -852,6 +853,7 @@
       chip.title = info.reason || ''; row.append(chip);
     }
     panel.append(row);
+    if (coverage.single_cell_grid_candidates != null) panel.append(element('p', '', `단일 제어 격자 ${coverage.single_cell_grid_evaluated}/${coverage.single_cell_grid_candidates} · 다중 셀 추가 확인 필요 ${coverage.joint_refinement_remaining || 0}개 · 배치 최대 128개`));
     for (const target of coverage.cell_targets || []) {
       if (!['blocked', 'not_applicable'].includes(target.status)) continue;
       const reason = String(target.reason || '');
@@ -862,6 +864,7 @@
     }
     const reasons = {original_request_met_all_expectations: '원안이 목표와 제약을 충족하여 대안 탐색이 필요하지 않습니다.',
       goal_met_after_all_axes_checked: '세 축의 기본 후보를 확인했고 목표와 제약을 충족하는 대안을 찾았습니다.',
+      goal_met_after_broad_and_joint_search: '셀별 전체 강도·시간 격자와 후순위 다중 셀 검토를 마치고 목표·제약을 충족하는 대안을 찾았습니다.',
       declared_candidate_grid_exhausted: '정의한 유한 후보 범위의 탐색을 완료했습니다. 전체 연속 공간의 불가능성을 뜻하지 않습니다.',
       budget_exhausted_with_unsearched_candidates: '탐색 예산에 도달했습니다. 아직 평가하지 않은 후보가 남아 있습니다.',
       search_incomplete: '미평가 후보를 이어서 검증합니다.'};

@@ -6,6 +6,7 @@ from pathlib import Path
 import httpx
 from dotenv import dotenv_values
 from .settings import ROOT, INVARIANTS
+from .tracing import observer, public_payload
 
 
 def configuration(settings=None):
@@ -38,6 +39,7 @@ def public_configuration(settings=None):
         "api": "responses",
         "streaming": True,
         "reasoning_display": "public decision summaries and tool evidence",
+        "tracing": observer().public_status(),
     }
 
 
@@ -63,6 +65,19 @@ class Provider:
         self.conf = configuration(settings)
 
     async def complete(self, role, messages, emit, tools=None, forced=None):
+        with observer().span(
+            f"LLM: {role}", run_type="llm",
+            inputs={"messages": public_payload(messages),
+                    "instructions": INVARIANTS + "\n" + self.settings["prompts"][role],
+                    "tools": tools, "forced_tool": forced},
+            metadata={"agent_role": role, "ls_provider": "openai",
+                      "ls_model_name": self.conf["model"], "ls_model_type": "chat"},
+        ) as span:
+            message, usage = await self._complete(role, messages, emit, tools, forced)
+            span.finish({"message": public_payload(message), "usage_metadata": usage})
+            return message
+
+    async def _complete(self, role, messages, emit, tools=None, forced=None):
         if not self.conf["key"]:
             raise ValueError(
                 "OPENAI_API_KEY is not configured in the existing Agentic AI environment; choose deterministic mode or configure the server environment"
@@ -106,7 +121,7 @@ class Provider:
             )
             if forced:
                 body["tool_choice"] = {"type": "function", "name": forced}
-        pieces, output, completed = [], [], False
+        pieces, output, completed, usage = [], [], False, {}
         async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=20)) as client:
             async with client.stream(
                 "POST",
@@ -147,6 +162,7 @@ class Provider:
                         await emit("summary_delta", role, delta)
                     elif kind == "response.completed":
                         output = item["response"]["output"]
+                        usage = item["response"].get("usage") or {}
                         completed = True
                         await emit(
                             "status",
@@ -174,4 +190,4 @@ class Provider:
         ]
         if calls:
             message["tool_calls"] = calls
-        return message
+        return message, usage
