@@ -24,6 +24,7 @@ import sys
 import tempfile
 import time
 from typing import Any
+from resource_limits import cpu_quota, memory_available
 
 SCHEMA = "agora-conflict-sweep-v1"
 CELLS = (("5g", "gNB_5G", 1), ("4g1", "gNB_4G_1", 2), ("4g2", "gNB_4G_2", 3))
@@ -188,6 +189,9 @@ def cpu_slots(cores_per_job: int, workers: int) -> list[list[int]]:
         raise RuntimeError("CPU pinning requires Linux/WSL sched_getaffinity and taskset")
     available = sorted(os.sched_getaffinity(0))
     required = cores_per_job * workers
+    quota = cpu_quota()
+    if quota is not None and required > quota:
+        raise ValueError(f"Requested {required} CPUs exceeds cgroup CPU quota {quota:g}")
     if required > len(available):
         raise ValueError(f"Requested {required} logical CPUs ({cores_per_job} x {workers}), only {len(available)} allowed")
     return [available[i * cores_per_job:(i + 1) * cores_per_job] for i in range(workers)]
@@ -255,16 +259,6 @@ def clean_environment(config: dict) -> dict:
                   OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
                   NUMEXPR_NUM_THREADS="1", VECLIB_MAXIMUM_THREADS="1", PYTHONDONTWRITEBYTECODE="1")
     return result
-
-
-def memory_available() -> int | None:
-    try:
-        for line in Path("/proc/meminfo").read_text(encoding="ascii").splitlines():
-            if line.startswith("MemAvailable:"):
-                return int(line.split()[1]) * 1024
-    except OSError:
-        pass
-    return None
 
 
 def existing_parent(path: Path) -> Path:
