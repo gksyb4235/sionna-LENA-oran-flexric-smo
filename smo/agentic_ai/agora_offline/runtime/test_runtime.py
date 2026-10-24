@@ -176,8 +176,11 @@ def main():
     parser.add_argument("--workspace", type=Path)
     args = parser.parse_args()
     WORKSPACE = args.workspace.resolve() if args.workspace else None
-    if WORKSPACE and (WORKSPACE / "experiments/legacy").is_dir():
-        WORKSPACE = WORKSPACE / "experiments/legacy"
+    if WORKSPACE:
+        for relative in ("experiment/khu/studies/legacy", "experiments/legacy"):
+            if (WORKSPACE / relative).is_dir():
+                WORKSPACE = WORKSPACE / relative
+                break
     suite = unittest.defaultTestLoader.loadTestsFromTestCase(RuntimeChecks)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     REPORT.update(tests_run=result.testsRun, failures=len(result.failures), errors=len(result.errors),

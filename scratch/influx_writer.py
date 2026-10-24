@@ -20,11 +20,15 @@ read it back):
     fields: tx_power_dbm, ret_tilt_deg, ret_bearing_deg, ttt_ms,
             hysteresis_db, num_ues (int), avg_rsrp_dbm,
             ho_in_count (int), ho_out_count (int), pingpong_count (int),
-            aggregate_throughput_mbps, prb_utilization_pct
+            cell_goodput_mbps, prb_utilization_pct, dl_bler_pct,
+            delay_gt_100ms_pct, rsrp_p10_dbm, sinr_avg_db,
+            ho_attempts_interval, pingpongs_interval, rlfs_interval,
+            energy_efficiency_mbit_per_j
 """
 
-import urllib.request
+import math
 import urllib.error
+import urllib.request
 
 
 def _escape_tag(value: str) -> str:
@@ -124,7 +128,16 @@ class InfluxWriter:
                        prb_utilization_pct: float | None = None,
                        energy_state: str | None = None,
                        tx_power_watts: float | None = None,
-                       energy_efficiency_mbps_per_w: float | None = None) -> bool:
+                       energy_efficiency_mbps_per_w: float | None = None,
+                       cell_goodput_mbps: float | None = None,
+                       dl_bler_pct: float | None = None,
+                       delay_gt_100ms_pct: float | None = None,
+                       rsrp_p10_dbm: float | None = None,
+                       sinr_avg_db: float | None = None,
+                       ho_attempts_interval: int | None = None,
+                       pingpongs_interval: int | None = None,
+                       rlfs_interval: int | None = None,
+                       kpi_interval_s: float | None = None) -> bool:
         fields = {
             "tx_power_dbm": float(tx_power_dbm),
             "ret_tilt_deg": float(ret_tilt_deg),
@@ -151,4 +164,26 @@ class InfluxWriter:
             fields["tx_power_watts"] = float(tx_power_watts)
         if energy_efficiency_mbps_per_w is not None:
             fields["energy_efficiency_mbps_per_w"] = float(energy_efficiency_mbps_per_w)
+            # Mbit/J is dimensionally identical to Mbps/W. Keep the old field
+            # for compatibility and expose the scientifically explicit name.
+            fields["energy_efficiency_mbit_per_j"] = float(energy_efficiency_mbps_per_w)
+        optional_floats = {
+            "cell_goodput_mbps": cell_goodput_mbps,
+            "dl_bler_pct": dl_bler_pct,
+            "delay_gt_100ms_pct": delay_gt_100ms_pct,
+            "rsrp_p10_dbm": rsrp_p10_dbm,
+            "sinr_avg_db": sinr_avg_db,
+            "kpi_interval_s": kpi_interval_s,
+        }
+        for field, value in optional_floats.items():
+            if value is not None and math.isfinite(float(value)):
+                fields[field] = float(value)
+        optional_ints = {
+            "ho_attempts_interval": ho_attempts_interval,
+            "pingpongs_interval": pingpongs_interval,
+            "rlfs_interval": rlfs_interval,
+        }
+        for field, value in optional_ints.items():
+            if value is not None:
+                fields[field] = int(value)
         return self.write_point("cell_kpi", {"cell": cell}, fields)

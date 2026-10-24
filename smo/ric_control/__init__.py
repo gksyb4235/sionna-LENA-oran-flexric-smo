@@ -1,1 +1,1 @@
-"""Local Non-RT policy adapter and FlexRIC E2 deployment gateway."""
+"""Shared control contracts and the FlexRIC E2 deployment gateway."""

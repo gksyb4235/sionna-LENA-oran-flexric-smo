@@ -12,6 +12,7 @@ import uuid
 import sys
 
 ROOT = Path(__file__).resolve().parents[3]
+RUNTIME = Path(os.environ.get("AGORA_RUNTIME_DIR", ROOT / "experiment/khu/results/agora_runtime"))
 GATEWAY = "http://127.0.0.1:18082"
 
 
@@ -32,7 +33,7 @@ def main():
     )
     current = next(r["current_rcp"] for r in manifest["runs"] if r["run_id"] == "gnn_0130")
     before = {r["run_id"] for r in request("/api/runs")["runs"]}
-    logpath = ROOT / "experiments/agora_runtime/logs/e2-integration-launch.log"
+    logpath = RUNTIME / "logs/e2-integration-launch.log"
     logpath.parent.mkdir(parents=True, exist_ok=True)
     with logpath.open("w") as log:
         options = (
@@ -155,8 +156,7 @@ def main():
                 flush=True,
             )
         output = (
-            ROOT
-            / "experiments/agora_runtime"
+            RUNTIME
             / (
                 "cached-app-routes-integration-results.json"
                 if "--cached" in sys.argv

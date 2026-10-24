@@ -1,0 +1,33 @@
+# Keep source, tests and the declared plan; preserve runtime artifacts locally.
+*
+!*/
+!.gitignore
+!*.py
+!*.h
+!*.cc
+!*.md
+!plan.json
+/results/
+/bin/
+/job_specs/
+/failed_attempts/
+/provenance/
+/selected/
+/training/
+/data_audit/
+/smoke/
+__pycache__/
+
+# Version only canonical-output compatibility links, not generated contents.
+!/results
+!/failed_attempts
+!/smoke
+!/training
+!/data_audit
+!/selected
+/results/**
+/failed_attempts/**
+/smoke/**
+/training/**
+/data_audit/**
+/selected/**

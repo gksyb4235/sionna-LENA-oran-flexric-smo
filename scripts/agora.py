@@ -11,7 +11,7 @@ import urllib.request
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = ROOT / "experiments/agora_runtime"
+RUNTIME = Path(os.environ.get("AGORA_RUNTIME_DIR", ROOT / "experiment/khu/results/agora_runtime"))
 APP = ROOT / "smo/agentic_ai/agora_offline"
 PYTHON = ROOT / ".venv/bin/python"
 CONF = ROOT / "smo/ric_control/config"
@@ -22,7 +22,8 @@ def environment():
     env["PATH"] = f"{ROOT}/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     env["VIRTUAL_ENV"] = str(ROOT / ".venv")
     env["PYTHONPATH"] = ":".join(
-        [str(ROOT), str(ROOT / "smo/agentic_ai"), str(ROOT / ".venv/lib/python3.12/site-packages")]
+        [str(ROOT), str(ROOT / "non-rt-ric"), str(ROOT / "smo/agentic_ai"),
+         str(ROOT / ".venv/lib/python3.12/site-packages")]
     )
     return env
 
@@ -126,7 +127,7 @@ def simulate(args):
         AGORA_RUN_ID=identity,
         AGORA_CONTROL_DIR=str(RUNTIME / "runs"),
         AGORA_REPLAY_RUN_ID=run,
-        AGORA_RET_CACHE_ROOT=str(ROOT / "scenarios/khu-real/ret_caches"),
+        AGORA_RET_CACHE_ROOT=str(ROOT / "experiment/khu/caches/ret_caches"),
     )
     directory = RUNTIME / "runs" / identity
     directory.mkdir(parents=True, exist_ok=False)
@@ -169,7 +170,7 @@ def simulate(args):
                 "CONTROL TEST ONLY: using a UE subset; GNN KPI validity is not assessed.",
                 flush=True,
             )
-        retroot = ROOT / "scenarios/khu-real/ret_caches"
+        retroot = ROOT / "experiment/khu/caches/ret_caches"
         a, b, c = (int(current[f"ret_{cell}"]) for cell in ("4g1", "4g2", "5g"))
         low = (
             retroot / f"tilt_{a}deg/sionna_rt_cache_1p8ghz_2x2_1x1_lzf.h5"
@@ -286,7 +287,9 @@ def main():
         execute(services()[args.command])
         return
     if args.command in ("monitoring", "up"):
-        execute(["docker", "compose", "--project-directory", ROOT / "monitoring", "up", "-d"])
+        execute(
+            ["docker", "compose", "--project-directory", ROOT / "near-rt-ric/monitoring", "up", "-d"]
+        )
         if args.command == "up":
             for name in ["ric", "gateway", "non-rt", "ui"]:
                 start(name)

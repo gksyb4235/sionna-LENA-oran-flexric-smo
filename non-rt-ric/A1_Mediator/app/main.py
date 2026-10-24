@@ -13,7 +13,10 @@ import sys
 REPOSITORY_ROOT = OsPath(__file__).resolve().parents[3]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
-from smo.non_rt_ric.a1 import router as agora_router
+NON_RT_ROOT = REPOSITORY_ROOT / "non-rt-ric"
+if str(NON_RT_ROOT) not in sys.path:
+    sys.path.insert(0, str(NON_RT_ROOT))
+from non_rt_ric.a1 import router as agora_router
 
 app = FastAPI(title="AGORA Non-RT RIC / Standalone A1 Mediator")
 # Fixed AGORA routes take priority over the legacy generic policy endpoints.

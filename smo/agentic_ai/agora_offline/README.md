@@ -1,6 +1,6 @@
 # AGORA offline control workbench
 
-This module runs the frozen final Temporal GNN and a five-role agent workflow against recorded observations. After an explicit operator selection, its live bridge can send the reviewed plan through the RIC gateway and FlexRIC/E2 to ns3. Offline queue registration remains available separately. See the [repository execution guide](../../../AGORA.md) for launching services, binding a simulator run and checking application/restoration receipts. The Windows GNN overview at port8773 remains available. The retired Agent Ops stack is preserved in the local legacy archive described in smo/README.md.
+This module runs the frozen final Temporal GNN and a five-role agent workflow against recorded observations. After an explicit operator selection, its live bridge can send the reviewed plan through the RIC gateway and FlexRIC/E2 to ns3. Offline queue registration remains available separately. See the [repository execution guide](../../../README.md) for launching services, binding a simulator run and checking application/restoration receipts. The Windows GNN overview at port8773 remains available. The retired Agent Ops stack is preserved in the local legacy archive described in smo/README.md.
 
 ## Start
 

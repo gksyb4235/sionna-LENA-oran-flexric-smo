@@ -36,8 +36,10 @@ def main():
     args = parser.parse_args()
     workspace, destination = args.workspace.resolve(), args.destination.resolve()
     data_workspace = workspace
-    if (workspace / "experiments/legacy").is_dir():
-        workspace = workspace / "experiments/legacy"
+    for relative in ("experiment/khu/studies/legacy", "experiments/legacy"):
+        if (workspace / relative).is_dir():
+            workspace = workspace / relative
+            break
     destination.mkdir(parents=True, exist_ok=True)
     (destination / "runs").mkdir(exist_ok=True)
     checkpoint = workspace / "agora_final_90_180/model/parameter5_backbone.pt"

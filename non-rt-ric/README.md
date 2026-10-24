@@ -1,10 +1,18 @@
 # AGORA Non-RT RIC
 
-The active repository launcher is `python scripts/agora.py non-rt`, or `python scripts/agora.py up` for all services. It hosts this mediator on loopback port9000 and includes the AGORA router from `smo/non_rt_ric/a1.py`.
+The active repository launcher is `python scripts/agora.py non-rt`, or `python scripts/agora.py up` for all services. It hosts this mediator on loopback port9000 and includes the AGORA router from `non-rt-ric/non_rt_ric/a1.py`.
+
+`A1_Mediator/app/main.py` is the HTTP server entry point; `non_rt_ric/` is its
+Python policy package. They run in the same server process. The launcher and
+standalone server set the package import path; a direct Python import uses
+`PYTHONPATH=non-rt-ric:.`. The package reuses SMO's common plan/schema contracts,
+and forwards reviewed policies to the execution gateway over HTTP.
+The policy database remains under `experiment/khu/results/agora_runtime/`
+(or `AGORA_RUNTIME_DIR`), so moving the code does not reset stored policies.
 
 Policy type 401 is reserved for reviewed Energy Saving and Coverage rApp interventions. It adds nested schema validation, persistent policy instances, duplicate protection, rApp dispatch to the execution xApp gateway and ns3-backed status. Other policy types retain the generic legacy API. The 401 route uses the original reviewed values and schedule; it does not run a second optimizer.
 
-This local research integration is not a full A1 conformance claim. See [SMO architecture](../smo/README.md) and [execution guide](../AGORA.md).
+This local research integration is not a full A1 conformance claim. See [SMO architecture](../smo/README.md) and [execution guide](../README.md).
 
 ---
 

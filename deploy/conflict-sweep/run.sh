@@ -8,6 +8,7 @@ output="$(realpath "${AGORA_RESULTS:-./results}")"
 test -d "$input/scenarios/khu-real/ret_caches"
 test -d "$input/scenarios/khu-real/ue_position"
 args=(run --rm --init --network none --read-only --cap-drop ALL --security-opt no-new-privileges
+  --env NUMPY_MADVISE_HUGEPAGE=0
   --user "$(id -u):$(id -g)" --tmpfs /tmp:rw,nosuid,nodev,size=256m
   --mount "type=bind,src=$input/scenarios/khu-real,dst=/opt/agora/scenarios/khu-real,readonly"
   --mount "type=bind,src=$output,dst=/opt/agora/results")

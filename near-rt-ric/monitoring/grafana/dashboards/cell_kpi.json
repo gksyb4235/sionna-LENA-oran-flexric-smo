@@ -1,0 +1,100 @@
+{
+  "title": "NR Cell KPI - 10s",
+  "uid": "nr-cell-kpi",
+  "schemaVersion": 39,
+  "version": 2,
+  "editable": true,
+  "timezone": "browser",
+  "time": { "from": "now-30m", "to": "now" },
+  "refresh": "5s",
+  "tags": ["ns-3", "10s-kpi"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "Current Config (TxP / RET tilt & bearing / TTT / HYS)",
+      "type": "table",
+      "datasource": "InfluxDB",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [{
+        "refId": "A",
+        "query": "SELECT last(\"tx_power_dbm\") AS \"TxPower (dBm)\", last(\"ret_tilt_deg\") AS \"RET tilt (deg)\", last(\"ret_bearing_deg\") AS \"RET bearing (deg)\", last(\"ttt_ms\") AS \"TTT (ms)\", last(\"hysteresis_db\") AS \"HYS (dB)\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"",
+        "rawQuery": true,
+        "resultFormat": "table"
+      }]
+    },
+    {
+      "id": 2, "title": "Goodput (Mbps)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "Mbits", "min": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"cell_goodput_mbps\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 3, "title": "PRB (%p)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"prb_utilization_pct\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 4, "title": "BLER (%p)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"dl_bler_pct\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 5, "title": "Delay >100 ms (%p)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"delay_gt_100ms_pct\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 6, "title": "RSRP 평균 (dBm)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "dBm", "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"avg_rsrp_dbm\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 7, "title": "RSRP p10 (dBm)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "dBm", "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"rsrp_p10_dbm\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 8, "title": "SINR 평균 (dB)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "dB", "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"sinr_avg_db\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 9, "title": "HO 시도 (/10s)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "decimals": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"ho_attempts_interval\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 10, "title": "Ping-pong (/10s)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 20 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "decimals": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"pingpongs_interval\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 11, "title": "RLF (/10s)", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 20 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "decimals": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"rlfs_interval\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 12, "title": "에너지 효율 (Mbit/J)", "description": "10초 구간 Goodput(Mbit) / 해당 구간 에너지 소비(J). 수치상 Mbps/W와 동일합니다.",
+      "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 20 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"energy_efficiency_mbit_per_j\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    },
+    {
+      "id": 13, "title": "Connected UEs", "type": "timeseries", "datasource": "InfluxDB",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "decimals": 0, "custom": { "drawStyle": "line", "showPoints": "always", "pointSize": 5 } }, "overrides": [] },
+      "targets": [{ "refId": "A", "query": "SELECT \"num_ues\" FROM \"cell_kpi\" WHERE $timeFilter GROUP BY \"cell\"", "rawQuery": true, "resultFormat": "time_series", "alias": "$tag_cell" }]
+    }
+  ]
+}

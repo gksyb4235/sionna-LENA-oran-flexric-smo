@@ -77,6 +77,8 @@ def child_path(root: Path, relative: str, label: str) -> Path:
     path = Path(relative)
     if path.is_absolute() or ".." in path.parts or "\\" in relative:
         raise ValueError(f"{label} must stay inside backend_root")
+    if path.parts and path.parts[0] == "experiments" and (root / "experiment/khu/studies").is_dir():
+        path = Path("experiment/khu/studies", *path.parts[1:])
     resolved = (root / path).resolve()
     if resolved == root or not resolved.is_relative_to(root):
         raise ValueError(f"{label} resolves outside backend_root")
@@ -205,7 +207,7 @@ def build_argv(manifest: dict, job: dict, schedule: Path) -> list[str]:
             "--kpiReportInterval=1.0", "--N_Ues=" + str(manifest["n_ues"]),
             "--sumoTrace=" + str(child_path(backend, job["trace_path"], "trace_path")),
             "--gnbPositions=" + str(child_path(backend, manifest.get("gnb_positions", "scenarios/khu-real/gnbs-ret.csv"), "gnb_positions")),
-            "--resultsRoot=" + manifest["output_root"], "--runTag=" + job["job_id"],
+            "--resultsRoot=" + str(child_path(backend, manifest["output_root"], "output_root")), "--runTag=" + job["job_id"],
             "--RngSeed=" + str(manifest["rng_seed"]), "--RngRun=" + str(manifest["rng_run"]),
             "--ns3::NrHelper::E2ModeNr=false",
             "--parameterSchedule=" + str(schedule),

@@ -97,6 +97,19 @@ class BatchTests(unittest.TestCase):
         self.assertNotIn("shell", argv)
         self.assertFalse(any(value.startswith(("--guiSrc=", "--influxSrc=")) for value in argv))
 
+    def test_old_manifest_output_resolves_to_new_layout_without_mutation(self):
+        studies = self.root / "experiment/khu/studies"
+        studies.mkdir(parents=True)
+        (studies / "two_switch_smoke").symlink_to("../results/two_switch_smoke")
+        self.manifest["output_root"] = "experiments/two_switch_smoke/run1"
+        before = runner.canonical_hash(self.manifest)
+        target = self.root / "experiment/khu/results/two_switch_smoke/run1"
+        self.assertEqual(runner.child_path(self.root, self.manifest["output_root"], "output_root"), target)
+        argv = runner.build_argv(self.manifest, self.job, target / "schedule.csv")
+        self.assertIn(f"--resultsRoot={target}", argv)
+        self.assertEqual(runner.canonical_hash(self.manifest), before)
+        self.assertFalse((self.root / "experiments").exists())
+
     def test_environment_removes_live_control_and_limits_threads(self):
         env = runner.clean_environment({"AGORA_CONTROL_DIR": "secret", "AGORA_RUN_ID": "a",
                                         "RIC_CONFIG": "b", "PATH": "keep", "OMP_NUM_THREADS": "64",

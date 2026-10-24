@@ -116,3 +116,11 @@ docker logs -f agora-sweep
 전체 500건은 기본 사전 검사에서 여유 디스크135GiB를 요구합니다(추정치).
 입력/export 파일 저장 공간은 별도입니다. 캐시는 이미지에 내장하지 않았으므로
 항상 입력 mount가 필요합니다.
+
+## NumPy huge-page allocation latency
+
+The launcher passes `NUMPY_MADVISE_HUGEPAGE=0` into the container before Python starts.
+On the EPYC server with THP enabled=madvise and defrag=madvise, disabling this NumPy
+request reduced the 99 MiB fill from 33.26 s to 0.051 s and HDF5 dataset read from
+25.82 s to 0.234 s. This changes allocation advice only, not cache values or host
+THP/Kubernetes settings. Full server ns3 smoke must still be rerun after the fix.

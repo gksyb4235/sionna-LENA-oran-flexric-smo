@@ -1675,6 +1675,14 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                        aggregate.delaysMs.end(),
                                                        0.0) /
                                            aggregate.delaysMs.size();
+        const auto delayGt100Count =
+            std::count_if(aggregate.delaysMs.begin(),
+                          aggregate.delaysMs.end(),
+                          [](double delayMs) { return delayMs > 100.0; });
+        const double delayGt100Pct =
+            aggregate.delaysMs.empty()
+                ? std::numeric_limits<double>::quiet_NaN()
+                : 100.0 * static_cast<double>(delayGt100Count) / aggregate.delaysMs.size();
         const uint32_t hoAttemptsInterval = cell.hoAttemptCount - cell.lastReportedHoAttemptCount;
         const uint32_t hoSuccessesInterval = cell.hoSuccessCount - cell.lastReportedHoSuccessCount;
         const uint32_t hoFailuresInterval = cell.hoFailureCount - cell.lastReportedHoFailureCount;
@@ -1713,7 +1721,16 @@ ReportKpiToInflux(NetDeviceContainer ueNetDev, double intervalSec)
                                                        prbUtilizationPct,
                                                        energyState,
                                                        totalPowerWatts,
-                                                       energyEfficiencyMbitPerJ);
+                                                       energyEfficiencyMbitPerJ,
+                                                       cellThroughputTotal,
+                                                       100.0 * dlBler,
+                                                       delayGt100Pct,
+                                                       Percentile(aggregate.rsrpDbm, 0.10),
+                                                       sinrAvgLinearDb,
+                                                       hoAttemptsInterval,
+                                                       pingPongsInterval,
+                                                       rlfsInterval,
+                                                       intervalSec);
             }
             catch (const py::error_already_set& error)
             {
@@ -3096,7 +3113,13 @@ main(int argc, char* argv[])
     // Always schedule KPI collection (drives both the CSV row buffers and,
     // when --influxSrc was given, the live InfluxDB writes) -- CSV export
     // should work the same whether or not InfluxDB is enabled/reachable.
-    Simulator::Schedule(trafficStart, &ReportKpiToInflux, ueNetDev, kpiReportInterval);
+    // Emit only complete KPI windows. Scheduling the first report directly at
+    // trafficStart produced a misleading near-empty point whose denominator
+    // was already the full interval (10 s for the Grafana sweep).
+    Simulator::Schedule(trafficStart + Seconds(kpiReportInterval),
+                        &ReportKpiToInflux,
+                        ueNetDev,
+                        kpiReportInterval);
 
     FlowMonitorHelper flowmonHelper;
     NodeContainer endpointNodes;

@@ -93,7 +93,6 @@ smo/agentic_ai/mongodb/run/
 
 
 # AGORA runtime logs, SQLite state, simulation outputs, and migration backups.
-/experiments/agora_runtime/
 
 # Replay observations stay local; checkpoint/manifest/context remain in Git.
 # Export/import with scripts/agora_replay.py for another checkout.
@@ -104,8 +103,79 @@ smo/agentic_ai/mongodb/run/
 /smo/agentic_ai/.env
 
 # Local experiment outputs; source and frozen designs are tracked separately.
-/experiments/agora_conflict_sweep/
-/experiments/conflict_scenarios_500/backend_smoke_*/
-/experiments/two_switch_debug/
-/experiments/two_switch_smoke/
 /verified_pc*.json
+
+# Canonical KHU layout. Raw results and local configuration never belong in a
+# new source checkout. Legacy compatibility symlinks may be versioned separately.
+/experiment/khu/results/*
+!/experiment/khu/results/KPI_SCHEMA.md
+/experiment/khu/caches/ret_caches/merged_percell/
+/experiment/khu/caches/sionna_rt_cache.h5
+/experiment/khu/caches/sionna_rt_cache_lzf.h5
+/experiment/khu/studies/**/config*.local.json
+/experiment/khu/studies/**/config*.json.local
+/experiment/khu/studies/conflict_scenarios_500/backend_smoke_*/
+/experiment/khu/studies/agora_runtime/
+/experiment/khu/studies/agora_conflict_sweep/
+/experiment/khu/studies/two_switch_debug/
+/experiment/khu/studies/two_switch_smoke/
+
+# Keep the already-versioned legacy samples through the move. These exceptions
+# can be removed only after approval to stop versioning the historical outputs.
+!/experiment/khu/results/legacy_pooled/
+/experiment/khu/results/legacy_pooled/*
+
+# Previously tracked result samples: retain until deletion is explicitly approved.
+!/experiment/khu/results/CIO_test/
+/experiment/khu/results/CIO_test/*
+!/experiment/khu/results/HYS_test/
+/experiment/khu/results/HYS_test/*
+!/experiment/khu/results/RET_test/
+/experiment/khu/results/RET_test/*
+!/experiment/khu/results/TxP_test/
+/experiment/khu/results/TxP_test/*
+!/experiment/khu/results/legacy_analysis/
+/experiment/khu/results/legacy_analysis/*
+!/experiment/khu/results/legacy_pooled/
+/experiment/khu/results/legacy_pooled/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_100s_20260827_105347/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_100s_20260827_105347/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_180600/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_180600/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200007/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200007/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/*
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_145705/
+/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_145705/*
+!/experiment/khu/results/legacy_analysis/gnn_dataset_params_distribution.png
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_100s_20260827_105347/cell_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_100s_20260827_105347/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_100s_20260827_105347/ue_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_180600/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_180600/run.pid
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200007/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200007/run.pid
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/cell_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/run.pid
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260826_200824/ue_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/cell_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/run.pid
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014436/ue_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/cell_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/command.sh
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/run.pid
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_014859/ue_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_145705/cell_kpi.csv
+!/experiment/khu/results/legacy_pooled/seed12_dual_nr_900s_20260827_145705/ue_kpi.csv
+!/experiment/khu/results/CIO_test/README.md
+!/experiment/khu/results/HYS_test/README.md
+!/experiment/khu/results/KPI_SCHEMA.md
+!/experiment/khu/results/RET_test/README.md
+!/experiment/khu/results/TxP_test/README.md

@@ -11,7 +11,6 @@ import httpx
 from fastapi.testclient import TestClient
 from smo.agentic_ai.agora_offline.applications import application_for, applications
 from smo.agentic_ai.agora_offline.provider import configuration
-from smo.non_rt_ric import a1
 from smo.ric_control import dispatch, gateway, state
 from smo.ric_control.messages import Submission, submission_digest
 
@@ -21,6 +20,7 @@ spec = importlib.util.spec_from_file_location(
 )
 mediator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mediator)
+from non_rt_ric import a1
 
 
 def body(objective="energy_saving"):
@@ -45,6 +45,11 @@ def body(objective="energy_saving"):
 
 
 class ApplicationTests(unittest.TestCase):
+    def test_policy_package_is_owned_by_non_rt_server(self):
+        self.assertEqual(Path(a1.__file__).resolve(), ROOT / "non-rt-ric/non_rt_ric/a1.py")
+        self.assertIs(mediator.agora_router, a1.router)
+        self.assertEqual(a1.ROOT, ROOT)
+
     def test_same_control_routes_by_application_purpose(self):
         apps = applications()
         self.assertEqual(len(apps), 5)

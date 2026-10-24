@@ -7,7 +7,7 @@ The active entry point is `python scripts/agora.py up` from the repository root.
 | agentic_ai/agora_offline/ | Final frozen GNN, five reasoning agents, goal/constraint editor and operator UI |
 | agentic_ai/agora_offline/applications.py | One shared contract for two rApps and three xApps |
 | agentic_ai/.env | Private provider settings; ignored by Git |
-| non_rt_ric/ | Durable A1 policies and rApp dispatch, hosted by non-rt-ric |
+| ../non-rt-ric/non_rt_ric/ | Non-RT-owned durable A1 policies and rApp dispatch (outside SMO) |
 | ric_control/ | Execution xApp dispatch, FlexRIC/E2 binding and ns3 readbacks |
 
 Energy Saving and Coverage Optimization are rApps. Throughput Maximization, Load Balancing and Mobility Optimization are xApps. Roles select the deployment route and do not alter GNN weights, graph nodes or forecasting inputs. All five use the same application contract and reviewed-plan shape.
@@ -36,8 +36,8 @@ Copy `agentic_ai/.env.example` to `agentic_ai/.env` when setting up a new machin
 
 ## Archived components
 
-The old agents, dashboard, agent_ops, MongoDB initialization files, deepagents source checkout, aimlfw services and their tests were removed from the active tree. Their complete local trees, environments and saved states are preserved under `experiments/agora_runtime/legacy/`. The exact paths and original Git commit are in `legacy/latest.json`. Historical design notes under .kiro describe the retired framework.
+The old agents, dashboard, agent_ops, MongoDB initialization files, deepagents source checkout, aimlfw services and their tests were removed from the active tree. Their complete local trees, environments and saved states are preserved under `experiment/khu/results/agora_runtime/legacy/`. The exact paths and original Git commit are in `legacy/latest.json`. Historical design notes under .kiro describe the retired framework.
 
 No new service starts the retired stack. To recover it, use the archive manifest to copy the preserved trees back to their original paths, checking for conflicts first. The currently used GNN replay data, UI sessions, checkpoints, RIC configuration, RET caches and monitoring data stay in place.
 
-See [AGORA.md](../AGORA.md) for simulation, export/import and validation commands.
+See the [repository README](../README.md) for simulation, export/import and validation commands.

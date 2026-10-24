@@ -10,7 +10,7 @@ import time
 from .protocol import identifier
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNTIME = Path(os.environ.get("AGORA_RUNTIME_DIR", ROOT / "experiments/agora_runtime"))
+RUNTIME = Path(os.environ.get("AGORA_RUNTIME_DIR", ROOT / "experiment/khu/results/agora_runtime"))
 RUNS = RUNTIME / "runs"
 
 
