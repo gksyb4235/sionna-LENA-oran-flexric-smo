@@ -1,0 +1,48 @@
+{
+  "scenarios": 50,
+  "post_start_events": 150,
+  "events_including_initial": 200,
+  "initial_apps": {
+    "ES": 10,
+    "TM": 10,
+    "CV": 10,
+    "LB": 10,
+    "MO": 10
+  },
+  "schedule_counts": {
+    "two_switch": 25,
+    "four_switch": 25
+  },
+  "first_transition_counts": {
+    "ES_to_TM": 3,
+    "ES_to_CV": 3,
+    "ES_to_LB": 2,
+    "ES_to_MO": 2,
+    "TM_to_ES": 3,
+    "TM_to_CV": 3,
+    "TM_to_LB": 2,
+    "TM_to_MO": 2,
+    "CV_to_ES": 3,
+    "CV_to_TM": 3,
+    "CV_to_LB": 2,
+    "CV_to_MO": 2,
+    "LB_to_ES": 3,
+    "LB_to_TM": 3,
+    "LB_to_CV": 2,
+    "LB_to_MO": 2,
+    "MO_to_ES": 3,
+    "MO_to_TM": 3,
+    "MO_to_CV": 2,
+    "MO_to_LB": 2
+  },
+  "duplicates_against_existing_500": 0,
+  "screening": "not_run",
+  "old_csv_sha256": "14e5fd2f38ff8c88975e6b3c9aa036fad57581f85f458f8e8f3e731485a4fa82",
+  "original_500_unchanged": true,
+  "trace_assignment": "501..550 -> existing seeds1000..1049; not new independent mobility traces",
+  "docker_preflight_passed": true,
+  "docker_selected_jobs": 50,
+  "simulation_launched": false,
+  "all_550_sequences_unique": true,
+  "combined_csv_original_500_values_unchanged": true
+}
