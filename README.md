@@ -113,7 +113,7 @@ python scripts/run_experiments.py KIND FIRST LAST CPUS_PER_JOB PARALLEL_JOBS
 | KIND | 번호 | 입력 | 변경 방식 |
 |---|---|---|---|
 | `fixed` | CSV에 존재하는 0-based `gnn_*` 번호 | `datasets/gnn_dataset_params.csv` | 실행 내 고정 |
-| `conflict` | 1~500 또는 501~550 | 해당 구간의 frozen manifest | 180/540초 또는 180/360/540/720초 변경 |
+| `conflict` | 1~500 | 해당 구간의 frozen manifest | 180/540초 또는 180/360/540/720초 변경 |
 
 번호는 양끝을 포함합니다. 같은 501이어도 `fixed`와 `conflict`는 다른 실험입니다.
 1~500과 501~550을 한 명령으로 섞지 않습니다. PC마다 겹치지 않는 구간을 배정합니다.
