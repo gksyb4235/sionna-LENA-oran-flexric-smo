@@ -1,7 +1,6 @@
 # KHU NR / Sionna / O-RAN 실험 환경
 
 ns-3.48, 5G-LENA, Sionna RT 캐시와 FlexRIC을 결합한 KHU 캠퍼스 연구용 테스트베드입니다.
-두 대역은 모두 **NR**입니다. `gNB_4G_*`는 1.8 GHz 셀의 기존 식별자이며 LTE 구현을 뜻하지 않습니다.
 이 README가 저장소 구조, 설치, 데이터 수집, 성능평가의 기준 문서입니다.
 
 ## 저장소 구조
@@ -47,15 +46,14 @@ deploy/conflict-sweep/  CPU-only Docker 배포 도구
 | `drl_xapp_conflict` | 별도 온라인 DRL 실험 |
 | `ho-sweep-20260804` | 과거 handover 실험 코드 |
 
-이 실험들은 데이터 생성 방식과 학습 조건이 다르므로 하나의 학습 세트나 성능 수치로 자동 병합하지 않습니다.
 과거 DRL 코드를 새 checkout에서 사용할 때는 `python scripts/setup_study_outputs.py`로
-출력 디렉터리와 호환 링크를 준비합니다. 이 명령은 기존 체크포인트를 생성하거나 대체하지 않습니다.
+출력 디렉터리와 호환 링크를 준비합니다.
 
 ## 설치와 빌드
 
 기준 환경은 Linux/WSL2 Ubuntu 24.04, Python 3.12, GCC 13입니다.
 Python 패키지 버전은 [requirements.txt](requirements.txt)에 고정돼 있습니다.
-WSL에서는 저장소를 Linux 파일시스템에 두고 실행하세요.
+WSL에서는 저장소를 Linux 파일시스템에 두고 실행.
 
 ```bash
 git clone https://github.com/gksyb4235/sionna-LENA-oran-flexric-smo.git
@@ -99,7 +97,6 @@ conflict backend는 `studies/conflict_scenarios_500/sweep/backend/reviewed-base.
 과거 출처를 뜻하며, 실제 적용 코드는 marker의 `files_sha256`으로 검증합니다.
 기존 HDF5 캐시를 사용하는 데이터 수집에는 새 ray tracing이나 RIC 실행이 필요하지 않습니다.
 새 캐시 생성과 GPU/GUI 구성은 별도 작업입니다. 기존 GPU/WSL 설치 기록은
-[이전 설치 기록](doc/project-archive/README.before-layout.txt)에 보존했습니다.
 
 ## 공통 실험 실행
 
