@@ -1,0 +1,84 @@
+RQ3 distributed ns-3 sweep (104 jobs, inclusive IDs 0..103)
+
+No simulation was started when this package was prepared.
+Select cores_per_job and parallel_jobs separately on each contributor's computer.
+The simulation uses no API keys, LLMs, GNN service, RIC, or network calls.
+
+1. Extract Result3_NS3_sweep.zip into a separate directory on Linux/WSL.
+   Python 3.11+ and the original backend's h5py environment are required.
+   Do NOT replace the old run_gnn_dataset_sweep.sh.
+   Use the same ns-3 repository and RET caches that generated the datasets.
+
+2. Point to that repository (absolute local Linux path):
+   export RQ3_NS3_ROOT=/path/to/LENA-oran-flexric-smo
+   Optional: export RET_CACHE_ROOT=/path/to/ret_caches
+   Optional: export RQ3_RESULTS_ROOT=/path/to/rq3_final_outputs
+   cd /path/to/extracted/package
+   chmod +x scenarios/khu-real/tools/run_rq3_sweep.sh
+
+   The existing repository must have the agora-conflict-sweep target built:
+   (cd "$RQ3_NS3_ROOT" && ./ns3 build khu-agora-conflict-sweep)
+   Frozen backend source files are included under
+   experiment/khu/rq3_final/backend_reference/ for comparison. The preflight
+   rejects mismatched source files; it never silently patches a repository.
+   If the target or required RRC hooks are absent, port these reference files
+   into the corresponding paths in a backed-up matching repository and rebuild.
+   The package does not include ns-3 libraries, the compiled binary, or large
+   Sionna RET caches. Those come from the existing simulation environment.
+
+3. Use the SAME four positional arguments as the old sweep:
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh START END CORES_PER_JOB PARALLEL_JOBS
+   START and END are zero-based, BOTH inclusive. Invalid bounds are rejected.
+   Example only (the user chooses resources):
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh 0 99 2 6 --dry-run
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh 0 99 2 6 --preflight
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh 0 99 2 6
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh 100 103 2 6
+   Or 0..100 (101 jobs) and 101..103 (3 jobs).
+   Different contributors use disjoint ID ranges. CPU assignment is local.
+   cores_per_job is the Linux CPU affinity mask size, not a guarantee that
+   ns-3 simulation events become parallel. It matches the old sweep meaning.
+
+4. Status and resuming:
+   ./scenarios/khu-real/tools/run_rq3_sweep.sh 0 103 2 6 --status
+   Repeating a range skips only successful, verified, same-provenance jobs.
+   If an existing attempt is incomplete, inspect it and append --retry-failed.
+   It is moved into _attempts/ before retry; nothing is deleted.
+   Ctrl-C stops only this invocation's process groups and retains outputs.
+   Different ranges on the same machine must use disjoint outer taskset masks
+   if run concurrently; the runner reserves its CPU slots to prevent overlap.
+
+5. ID inventory:
+   0..17   original approval / fixed-parameter hold: 18 jobs
+   18..29  reject incoming change / hold pre-origin settings: 12 jobs
+   30..103 additional AGORA trajectories: 74 jobs
+   The 120 intent/horizon conditions map to 312 method outcome entries.
+   35 AGORA no-plan entries have a separately marked proposed hold fallback.
+   They do not create extra simulations or become successful AGORA plans.
+   PACIFISTA decisions reuse identical approve/reject trajectories later.
+
+6. Reproduction and interpretation:
+   Every job runs 900 s from the same original initial settings and mobility.
+   Original control history before t0 is retained. Intent evaluation uses only
+   the recorded [t0,t0+H) window. Exact duplicate schedules share a job;
+   a 3-min condition may share a 6-min job only if its entire 3-min sequence matches.
+   After H, non-approval plans restore the pre-origin settings; any original
+   changes at/after that boundary are applied as deltas. These later slots are
+   outside the evaluation. Approval replays the full original 900-s sequence.
+   Each ns-3 parameter event is applied atomically at its timestamp.
+   Completed output means successful process exit, complete KPI grid and
+   matching control receipts/readback. It does NOT mean intent satisfaction.
+   execution.json separately reports historical pre-intervention KPI parity.
+   A mismatch requires comparison with matched approval replays, not attributing
+   differences versus historical data to mitigation. Collect all machines'
+   outputs before final evaluation. No actual mitigation performance is claimed yet.
+
+7. Outputs:
+   $RQ3_RESULTS_ROOT/rq3_0000/ ... rq3_0103/
+   Default: $RQ3_NS3_ROOT/experiment/khu/results/rq3_final/
+   Each folder has cell_kpi.csv, ue_kpi.csv, parameter_changes.csv, launcher.log,
+   run.log (simulator-dependent), and execution.json including commands/provenance.
+   Preserve _batches/ and all execution.json files when merging results.
+   A 3-GiB process virtual-memory limit matches the old sweep default;
+   set RQ3_MEMORY_LIMIT_BYTES explicitly if your machine requires another limit.
+   The script does not choose a worker count or change your WSL CPU/RAM allocation.
