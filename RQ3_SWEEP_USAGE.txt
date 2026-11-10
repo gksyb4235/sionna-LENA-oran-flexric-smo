@@ -5,6 +5,7 @@ Select cores_per_job and parallel_jobs separately on each contributor's computer
 The simulation uses no API keys, LLMs, GNN service, RIC, or network calls.
 
 1. Extract Result3_NS3_sweep.zip into a separate directory on Linux/WSL.
+   Use a Linux path without spaces for the package, repository, caches and outputs.
    Python 3.11+ and the original backend's h5py environment are required.
    Do NOT replace the old run_gnn_dataset_sweep.sh.
    Use the same ns-3 repository and RET caches that generated the datasets.
@@ -76,8 +77,10 @@ The simulation uses no API keys, LLMs, GNN service, RIC, or network calls.
 7. Outputs:
    $RQ3_RESULTS_ROOT/rq3_0000/ ... rq3_0103/
    Default: $RQ3_NS3_ROOT/experiment/khu/results/rq3_final/
-   Each folder has cell_kpi.csv, ue_kpi.csv, parameter_changes.csv, launcher.log,
-   run.log (simulator-dependent), and execution.json including commands/provenance.
+   Each job folder has launcher.log and execution.json including commands/provenance.
+   Actual ns-3 CSVs and run.log are under rq3_XXXX/simulation/run/.
+   Constant-control jobs omit --parameterSchedule and have no parameter_changes.csv.
+   This avoids the backend's rejection of header-only schedule CSVs.
    Preserve _batches/ and all execution.json files when merging results.
    A 3-GiB process virtual-memory limit matches the old sweep default;
    set RQ3_MEMORY_LIMIT_BYTES explicitly if your machine requires another limit.

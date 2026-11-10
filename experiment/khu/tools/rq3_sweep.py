@@ -17,6 +17,7 @@ import time
 
 CELLS = [('5g','gNB_5G'),('4g1','gNB_4G_1'),('4g2','gNB_4G_2')]
 FIELDS = [('txp','tx_power_dbm'),('ret','ret_tilt_deg'),('cio','cio_bias_db')]
+RUNNER_VERSION = 'rq3-sweep-v2-empty-schedule-output-layout'
 
 
 def now():
@@ -77,6 +78,10 @@ def argv(repo, bundle, manifest, job, cache, output, cpus, memory):
     p=job['initial_parameters']; low,high=initial_caches(cache,p)
     def cell_values(family):
         return ','.join(f'{name}:{p[f"{family}_{label}"]:g}' for label,name in CELLS)
+    # Metadata already occupies output/job_id. Never pass that occupied folder
+    # as the simulator run directory: ns-3 would silently append _1, _2, etc.
+    simulation_root=output/job['job_id']/'simulation'
+    schedule_args=([f'--parameterSchedule={bundle/job["schedule"]}'] if job['events'] else [])
     return ['taskset','-c',','.join(map(str,cpus)),'prlimit',f'--as={memory}',
             str(repo/'build/scratch/agora-conflict-sweep/ns3.48-khu-agora-conflict-sweep-default'),
             '--centralFrequency18=1.8e9','--bandwidth18=10e6','--centralFrequency35=3.5e9',
@@ -84,9 +89,9 @@ def argv(repo, bundle, manifest, job, cache, output, cpus, memory):
             '--sionnaUpdatePeriod=1s','--udpBaseIntervalMs=200','--trafficMultiplierEnabled=true',
             '--simTime=900','--kpiReportInterval=1','--N_Ues=300',
             f'--sumoTrace={bundle/job["trace"]}',f'--gnbPositions={bundle/manifest["gnb_positions"]}',
-            f'--resultsRoot={output}',f'--runTag={job["job_id"]}','--RngSeed=1','--RngRun=1',
+            f'--resultsRoot={simulation_root}','--runTag=run','--RngSeed=1','--RngRun=1',
             '--ns3::NrHelper::E2ModeNr=false','--ns3::NrHelper::UseIdealRrc=true',
-            f'--parameterSchedule={bundle/job["schedule"]}',f'--parameterScheduleRetCacheRoot={cache}',
+            *schedule_args,f'--parameterScheduleRetCacheRoot={cache}',
             '--cellRetBearingDeg=gNB_5G:20,gNB_4G_1:0,gNB_4G_2:10',
             '--cellTxPowerDbm='+cell_values('txp'),'--cellRetTiltDeg='+cell_values('ret'),
             '--cellCioDb='+cell_values('cio'),f'--handoverTtt={p["ttt_ms"]:g}',
@@ -96,6 +101,9 @@ def argv(repo, bundle, manifest, job, cache, output, cpus, memory):
 
 
 def preflight(repo,bundle,manifest,jobs,cache,env):
+    for path in (repo,bundle,cache):
+        if any(c.isspace() for c in str(path)):
+            raise ValueError(f'ns-3 CLI truncates paths at whitespace. Install the bundle in a Linux path without spaces: {path}')
     binary=repo/'build/scratch/agora-conflict-sweep/ns3.48-khu-agora-conflict-sweep-default'
     if not os.access(binary,os.X_OK):
         raise ValueError(f'Missing executable: {binary}; build khu-agora-conflict-sweep first')
@@ -152,17 +160,21 @@ def close_value(a,b):
         return a==b
 
 
-def verify_output(bundle,job,folder,returncode):
+def verify_output(bundle,job,folder,returncode,*,duration_s=900):
     issues=[]; prefix={}; hashes={}
+    data=folder/'simulation/run'
+    if returncode!=0: issues.append(f'exit={returncode}')
     try:
-        for name in ['cell_kpi.csv','ue_kpi.csv','parameter_changes.csv']:
-            path=folder/name
+        required=['cell_kpi.csv','ue_kpi.csv']
+        # No scheduled changes => ns-3 does not create a receipts file.
+        if job['events'] or (data/'parameter_changes.csv').exists(): required.append('parameter_changes.csv')
+        for name in required:
+            path=data/name
             if not path.is_file() or path.stat().st_size==0: raise ValueError('Missing '+name)
-            hashes[name]=sha(path)
-        if returncode!=0: issues.append(f'exit={returncode}')
-        with (folder/'cell_kpi.csv').open(newline='') as f: rows=list(csv.DictReader(f))
+            hashes[path.relative_to(folder).as_posix()]=sha(path)
+        with (data/'cell_kpi.csv').open(newline='') as f: rows=list(csv.DictReader(f))
         keys=[(float(r['time_s']),int(r['cell_id'])) for r in rows]
-        if len(keys)!=2700 or set(keys)!={(s+.5,c) for s in range(900) for c in (1,2,3)}:
+        if len(keys)!=duration_s*3 or set(keys)!={(s+.5,c) for s in range(duration_s) for c in (1,2,3)}:
             issues.append('incomplete_or_duplicate_cell_grid')
         for r in rows:
             t=float(r['time_s']); c=int(r['cell_id']); p=expected_controls(job,t)
@@ -171,7 +183,9 @@ def verify_output(bundle,job,folder,returncode):
                 ('ttt_ms',p['ttt_ms']),('hysteresis_db',p['hys_db'])]
             if any(not close_value(r[k],v) for k,v in checks):
                 issues.append(f'control_readback_mismatch_at_{t}_cell_{c}');break
-        with (folder/'parameter_changes.csv').open(newline='') as f: receipts=list(csv.DictReader(f))
+        receipts=[]
+        if (data/'parameter_changes.csv').exists():
+            with (data/'parameter_changes.csv').open(newline='') as f: receipts=list(csv.DictReader(f))
         wanted=[(e['time_s'],p,v) for e in job['events'] for p,v in e['updates'].items()]
         actual=[(float(r['scheduled_time_s']),r['parameter'],float(r['after'])) for r in receipts]
         if sorted(actual)!=sorted(wanted) or any(r['status']!='applied' or not close_value(r['scheduled_time_s'],r['applied_time_s']) for r in receipts):
@@ -192,7 +206,8 @@ def verify_output(bundle,job,folder,returncode):
                     interpretation='A mismatch blocks attribution versus historical CSV; compare matched replay controls after collecting all machines.')
     except Exception as error:
         issues.append(str(error))
-    return dict(execution_verified=not issues,issues=issues,output_sha256=hashes,**prefix)
+    return dict(execution_verified=not issues,issues=issues,output_sha256=hashes,
+                data_directory='simulation/run',**prefix)
 
 
 def completed(folder,signature):
@@ -264,7 +279,8 @@ def run(args,repo,bundle,manifest,jobs,slots,output,cache,provenance,signature):
                     folder.rename(archive/(job['job_id']+'_'+stamp))
                 folder.mkdir();log=(folder/'launcher.log').open('xb')
                 command=argv(repo,bundle,manifest,job,cache,output,cpus,memory)
-                record=dict(status='launching',job_index=job['index'],job_id=job['job_id'],cpus=cpus,
+                record=dict(status='launching',runner_version=RUNNER_VERSION,
+                            data_directory='simulation/run',job_index=job['index'],job_id=job['job_id'],cpus=cpus,
                             started_at=now(),argv=command,signature=current_signature,provenance=provenance)
                 save(folder/'execution.json',record)
                 try:
@@ -303,6 +319,8 @@ def main():
     jobs=select(manifest['jobs'],args.start,args.end)
     output=Path(os.environ.get('RQ3_RESULTS_ROOT',str(repo/'experiment/khu/results/rq3_final'))).resolve()
     cache=Path(os.environ.get('RET_CACHE_ROOT',str(repo/'experiment/khu/caches/ret_caches'))).resolve()
+    if any(c.isspace() for c in str(output)):
+        raise ValueError('RQ3_RESULTS_ROOT must not contain whitespace (ns-3 CLI limitation)')
     available=sorted(os.sched_getaffinity(0))
     slots=cpu_slots(args.cores_per_job,args.parallel_jobs,available)
     if args.status:
@@ -318,7 +336,7 @@ def main():
     provenance=preflight(repo,bundle,manifest,jobs,cache,clean_env(repo))
     # A job signature is independent of selected range and CPU allocation.
     # Cache hashes, binary, source and all manifest data bind reuse across machines.
-    signature=hashlib.sha256((sha(manifest_path)+provenance['binary_sha256']+
+    signature=hashlib.sha256((RUNNER_VERSION+sha(manifest_path)+provenance['binary_sha256']+
                              json.dumps(manifest['backend_source_sha256'],sort_keys=True)).encode()).hexdigest()
     if args.preflight:
         print(json.dumps(dict(preflight_passed=True,jobs=len(jobs),signature=signature,simulation_started=False),indent=2));return 0
