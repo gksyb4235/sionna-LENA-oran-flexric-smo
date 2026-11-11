@@ -23,7 +23,7 @@ def parse_ids(text,count):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    select=p.add_mutually_exclusive_group(required=True);select.add_argument('--partition',choices=['local_retry','peer_native','server_container','new_all','prefix_recheck','reuse_verified']);select.add_argument('--ids')
+    select=p.add_mutually_exclusive_group(required=True);select.add_argument('--partition',choices=['local_retry','pc1','pc2','pc3','pc4','server_container','new_all','prefix_recheck','reference_repeat','reuse_verified']);select.add_argument('--ids')
     p.add_argument('--workers',type=int,default=1);p.add_argument('--shards',type=int,default=1);p.add_argument('--shard-index',type=int,default=0)
     p.add_argument('--memory-gib',type=float,default=8);p.add_argument('--output',type=Path)
     mode=p.add_mutually_exclusive_group();mode.add_argument('--dry-run',action='store_true');mode.add_argument('--status',action='store_true');mode.add_argument('--preflight',action='store_true')

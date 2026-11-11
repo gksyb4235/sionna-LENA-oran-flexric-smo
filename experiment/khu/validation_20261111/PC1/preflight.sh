@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo="$(cd "$(dirname "$0")/../../../.." && pwd)"
+exec python3 "$repo/experiment/khu/tools/validation_sweep.py" --partition pc1 --workers 16 --preflight "$@"
