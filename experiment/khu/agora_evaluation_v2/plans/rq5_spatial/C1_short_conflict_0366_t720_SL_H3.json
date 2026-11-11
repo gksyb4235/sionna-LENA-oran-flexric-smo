@@ -1,0 +1,80 @@
+{
+  "variant": "rq5_spatial",
+  "episode_id": "C1_short_conflict_0366_t720_SL_H3",
+  "canonical_source": "02_Planning/rq5_spatial/C1_short_conflict_0366_t720_SL_H3",
+  "selected_plan_sha256": "3e4649cac014f34a3101097302bcb49f04da71fee15a459a0b2d775dc53de845",
+  "scenario_sha256": "8b0b0fbe083a2e23db5ffc847b56c428d88e56a9401e191d4d821d84be9c8482",
+  "summary_sha256": "2796458391a0c067e8927ed1858c24686e09385bbefa83cc8513581e172b284c",
+  "selected_plan": {
+    "status": "no_plan",
+    "method": "full",
+    "plan": null,
+    "submitted_plan": null,
+    "evaluation": null,
+    "ns3_validated": false,
+    "deployment_approved": false
+  },
+  "scenario": {
+    "run_id": "conflict_0366",
+    "start_s": 720,
+    "parameters": [
+      "txp_5g",
+      "txp_4g1",
+      "txp_4g2",
+      "ret_5g",
+      "ret_4g1",
+      "ret_4g2",
+      "cio_5g",
+      "cio_4g1",
+      "cio_4g2",
+      "ttt_ms",
+      "hys_db"
+    ],
+    "baseline_controls": [
+      37.0,
+      37.0,
+      30.0,
+      5.0,
+      5.0,
+      12.0,
+      6.0,
+      0.0,
+      2.0,
+      720.0,
+      5.0
+    ],
+    "original_controls": [
+      37.0,
+      37.0,
+      40.0,
+      5.0,
+      5.0,
+      12.0,
+      6.0,
+      0.0,
+      2.0,
+      720.0,
+      5.0
+    ],
+    "rq5_axis": "spatial",
+    "rq5_anchor_policy": "original_request",
+    "rq5_temporal_duty": "variable_nonempty",
+    "rq5_anchor_plan": {
+      "plan_id": "rq5_anchor_request",
+      "actions": [
+        {
+          "parameter": "txp_4g2",
+          "value": 40.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    "replay_anchor_overridden": false,
+    "original_controls_are_logged_request": true,
+    "approve_reference_label": "RQ5 anchor request"
+  }
+}

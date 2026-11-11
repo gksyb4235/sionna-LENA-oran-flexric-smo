@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "intent_id": "C3_long_conflict_0477_t540_LL_H3",
+  "case_id": 3,
+  "case_label": "EE_CCO",
+  "pair_id": "LL",
+  "title": "EE_CCO",
+  "horizon_slots": 3,
+  "slot_seconds": 60,
+  "objectives": [
+    {
+      "expectation_id": "A_objective",
+      "role": "objective",
+      "side": "A",
+      "intent": "ES",
+      "strictness": "L",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "ric_worst",
+      "time_agg": "min",
+      "metric": "ee",
+      "canonical_metric": "ee",
+      "profile": "RIC_WORST",
+      "adapter_required": true,
+      "slots": [
+        0,
+        1,
+        2
+      ],
+      "op": ">=",
+      "threshold": 0.041124605431873004,
+      "lower_bound": 0.041124605431873004,
+      "upper_bound": null,
+      "unbounded_value_representation": "null",
+      "scale": 0.020839573563083198,
+      "scale_method": "IQR",
+      "unit": "Mbit/J",
+      "train_percentile": 60,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true,
+      "weight": 0.5
+    },
+    {
+      "expectation_id": "B_objective",
+      "role": "objective",
+      "side": "B",
+      "intent": "CCO",
+      "strictness": "L",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "mean",
+      "time_agg": "min",
+      "metric": "rsrp",
+      "canonical_metric": "rsrp_p10",
+      "profile": "ALL_MEAN",
+      "adapter_required": false,
+      "slots": [
+        0,
+        1,
+        2
+      ],
+      "op": ">=",
+      "threshold": -80.13333384195964,
+      "lower_bound": -80.13333384195964,
+      "upper_bound": null,
+      "unbounded_value_representation": "null",
+      "scale": 6.0,
+      "scale_method": "IQR",
+      "unit": "dBm",
+      "train_percentile": 60,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true,
+      "weight": 0.5
+    }
+  ],
+  "constraints": [
+    {
+      "expectation_id": "A_constraint",
+      "role": "constraint",
+      "side": "A",
+      "intent": "ES",
+      "strictness": "L",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "ric_worst",
+      "time_agg": "min",
+      "metric": "rsrp",
+      "canonical_metric": "rsrp_p10",
+      "profile": "RIC_WORST",
+      "adapter_required": true,
+      "slots": [
+        0,
+        1,
+        2
+      ],
+      "op": ">=",
+      "threshold": -92.0,
+      "lower_bound": -92.0,
+      "upper_bound": null,
+      "unbounded_value_representation": "null",
+      "scale": 7.400001525878906,
+      "scale_method": "IQR",
+      "unit": "dBm",
+      "train_percentile": 20,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true
+    },
+    {
+      "expectation_id": "B_constraint",
+      "role": "constraint",
+      "side": "B",
+      "intent": "CCO",
+      "strictness": "L",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "mean",
+      "time_agg": "min",
+      "metric": "ee",
+      "canonical_metric": "ee",
+      "profile": "ALL_MEAN",
+      "adapter_required": false,
+      "slots": [
+        0,
+        1,
+        2
+      ],
+      "op": ">=",
+      "threshold": 0.04178941160293667,
+      "lower_bound": 0.04178941160293667,
+      "upper_bound": null,
+      "unbounded_value_representation": "null",
+      "scale": 0.014485541465100782,
+      "scale_method": "IQR",
+      "unit": "Mbit/J",
+      "train_percentile": 20,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true
+    }
+  ],
+  "profile_A": "L",
+  "profile_B": "L",
+  "spatial_profile_A": "RIC_WORST",
+  "spatial_profile_B": "ALL_MEAN",
+  "threshold_fit_split": "train",
+  "criteria_fixed_across_candidate_plans": true,
+  "adapter_required": true,
+  "temporal_rule": "Each protective bound must hold in every 60-second slot; objectives use the same worst-slot aggregation.",
+  "U_formula": "1 - sum(weight * max(0, bound shortfall) / scale) over objectives",
+  "early_stop": {
+    "enabled": false,
+    "exact_react_rounds": 2
+  },
+  "start_s": 540,
+  "run_id": "conflict_0477"
+}

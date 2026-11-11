@@ -1,0 +1,83 @@
+{
+  "variant": "rq5_full",
+  "episode_id": "C2_long_conflict_0435_t540_SL_H6",
+  "canonical_source": "02_Planning/rq5_full/C2_long_conflict_0435_t540_SL_H6",
+  "selected_plan_sha256": "3e4649cac014f34a3101097302bcb49f04da71fee15a459a0b2d775dc53de845",
+  "scenario_sha256": "af34fcbeb901044e9d48760d107bc6483adaf87e526d6af5547deb58248c753e",
+  "summary_sha256": "cb941490a41e6d209cc0aff4039b1a1c680cde1821ef029dc752cf138559d6b0",
+  "selected_plan": {
+    "status": "no_plan",
+    "method": "full",
+    "plan": null,
+    "submitted_plan": null,
+    "evaluation": null,
+    "ns3_validated": false,
+    "deployment_approved": false
+  },
+  "scenario": {
+    "run_id": "conflict_0435",
+    "start_s": 540,
+    "parameters": [
+      "txp_5g",
+      "txp_4g1",
+      "txp_4g2",
+      "ret_5g",
+      "ret_4g1",
+      "ret_4g2",
+      "cio_5g",
+      "cio_4g1",
+      "cio_4g2",
+      "ttt_ms",
+      "hys_db"
+    ],
+    "baseline_controls": [
+      37.0,
+      37.0,
+      43.0,
+      5.0,
+      5.0,
+      5.0,
+      6.0,
+      0.0,
+      -1.0,
+      512.0,
+      4.5
+    ],
+    "original_controls": [
+      37.0,
+      37.0,
+      43.0,
+      5.0,
+      5.0,
+      5.0,
+      6.0,
+      0.0,
+      1.0,
+      512.0,
+      4.5
+    ],
+    "rq5_axis": "full",
+    "rq5_anchor_policy": "original_request",
+    "rq5_temporal_duty": "variable_nonempty",
+    "rq5_anchor_plan": {
+      "plan_id": "rq5_anchor_request",
+      "actions": [
+        {
+          "parameter": "cio_4g2",
+          "value": 1.0,
+          "slots": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ]
+        }
+      ]
+    },
+    "replay_anchor_overridden": false,
+    "original_controls_are_logged_request": true,
+    "approve_reference_label": "RQ5 anchor request"
+  }
+}

@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "intent_id": "C2_long_conflict_0435_t540_SS_H6",
+  "case_id": 2,
+  "case_label": "RLS_MLB",
+  "pair_id": "SS",
+  "title": "RLS_MLB",
+  "horizon_slots": 6,
+  "slot_seconds": 60,
+  "objectives": [
+    {
+      "expectation_id": "A_objective",
+      "role": "objective",
+      "side": "A",
+      "intent": "MRO",
+      "strictness": "S",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "mean",
+      "time_agg": "max",
+      "metric": "rlf",
+      "canonical_metric": "rlf",
+      "profile": "ALL_MEAN",
+      "adapter_required": false,
+      "slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "op": "<=",
+      "threshold": 0.0,
+      "lower_bound": null,
+      "upper_bound": 0.0,
+      "unbounded_value_representation": "null",
+      "scale": 0.3333333333333333,
+      "scale_method": "IQR",
+      "unit": "events/60s (spatial aggregate)",
+      "train_percentile": 20,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true,
+      "weight": 0.5,
+      "integer_equivalent": "r0+r1+r2 <= 0",
+      "integer_bound": 0.0
+    },
+    {
+      "expectation_id": "B_objective",
+      "role": "objective",
+      "side": "B",
+      "intent": "MLB",
+      "strictness": "S",
+      "cells": [
+        1,
+        2
+      ],
+      "cell_names": [
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "pair_gap",
+      "time_agg": "max",
+      "metric": "load",
+      "canonical_metric": "prb_imbalance",
+      "profile": "B18_MEAN",
+      "adapter_required": false,
+      "slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "op": "<=",
+      "threshold": 5.57208251953125,
+      "lower_bound": null,
+      "upper_bound": 5.57208251953125,
+      "unbounded_value_representation": "null",
+      "scale": 17.262088775634766,
+      "scale_method": "IQR",
+      "unit": "percentage_points",
+      "train_percentile": 20,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true,
+      "weight": 0.5
+    }
+  ],
+  "constraints": [
+    {
+      "expectation_id": "A_constraint",
+      "role": "constraint",
+      "side": "A",
+      "intent": "MRO",
+      "strictness": "S",
+      "cells": [
+        0,
+        1,
+        2
+      ],
+      "cell_names": [
+        "3.5GHz",
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "mean_absolute_deviation",
+      "time_agg": "max",
+      "metric": "load",
+      "canonical_metric": "prb_imbalance",
+      "profile": "ALL_MEAN",
+      "adapter_required": true,
+      "slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "op": "<=",
+      "threshold": 16.44524637858073,
+      "lower_bound": null,
+      "upper_bound": 16.44524637858073,
+      "unbounded_value_representation": "null",
+      "scale": 11.31691445244683,
+      "scale_method": "IQR",
+      "unit": "percentage_points",
+      "train_percentile": 60,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true
+    },
+    {
+      "expectation_id": "B_constraint",
+      "role": "constraint",
+      "side": "B",
+      "intent": "MLB",
+      "strictness": "S",
+      "cells": [
+        1,
+        2
+      ],
+      "cell_names": [
+        "1.8GHz_1",
+        "1.8GHz_2"
+      ],
+      "cell_agg": "mean",
+      "time_agg": "max",
+      "metric": "rlf",
+      "canonical_metric": "rlf",
+      "profile": "B18_MEAN",
+      "adapter_required": false,
+      "slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "op": "<=",
+      "threshold": 0.0,
+      "lower_bound": null,
+      "upper_bound": 0.0,
+      "unbounded_value_representation": "null",
+      "scale": 0.5,
+      "scale_method": "IQR",
+      "unit": "events/60s (spatial aggregate)",
+      "train_percentile": 60,
+      "threshold_fit_split": "train",
+      "threshold_train_slots": 8784,
+      "threshold_train_runs": 732,
+      "equality_satisfies": true,
+      "integer_equivalent": "r1+r2 <= 0",
+      "integer_bound": 0.0
+    }
+  ],
+  "profile_A": "S",
+  "profile_B": "S",
+  "spatial_profile_A": "ALL_MEAN",
+  "spatial_profile_B": "B18_MEAN",
+  "threshold_fit_split": "train",
+  "criteria_fixed_across_candidate_plans": true,
+  "adapter_required": true,
+  "temporal_rule": "Each protective bound must hold in every 60-second slot; objectives use the same worst-slot aggregation.",
+  "U_formula": "1 - sum(weight * max(0, bound shortfall) / scale) over objectives",
+  "early_stop": {
+    "enabled": false,
+    "exact_react_rounds": 2
+  },
+  "start_s": 540,
+  "run_id": "conflict_0435"
+}
