@@ -1,0 +1,638 @@
+{
+  "variant": "full_r4",
+  "episode_id": "C6_long_conflict_0155_t180_SS_H3",
+  "selected_plan_sha256": "a6eb6f7de8327706952da03e875c4bfd968efb8fa6f851e3631a49e4e8dac06d",
+  "scenario_sha256": "b6832938af8a071a5218f3f40a9f42794881061896c34d8bdb23ba5273be1d1f",
+  "summary_sha256": "aefcc807516af0d3d4bbe22df8ceb5bb0e718256cf0848b00873cc72126cca9f",
+  "source_run": "Result/Result4/Runs/full/react_04/full_r4_20261110",
+  "selected_plan": {
+    "status": "predicted_feasible",
+    "method": "full",
+    "plan": {
+      "plan_id": "round4_final_0045",
+      "actions": [
+        {
+          "parameter": "cio_4g2",
+          "value": 2.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "parameter": "txp_4g1",
+          "value": 30.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "parameter": "txp_4g2",
+          "value": 36.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "parameter": "ret_4g2",
+          "value": 9.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "parameter": "ttt_ms",
+          "value": 128.0,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "parameter": "hys_db",
+          "value": 1.5,
+          "slots": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "reason": "Candidate-defined combination search"
+    },
+    "submitted_plan": null,
+    "evaluation": {
+      "plan_id": "round4_final_0045",
+      "plan": {
+        "plan_id": "round4_final_0045",
+        "actions": [
+          {
+            "parameter": "cio_4g2",
+            "value": 2.0,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "parameter": "txp_4g1",
+            "value": 30.0,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "parameter": "txp_4g2",
+            "value": 36.0,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "parameter": "ret_4g2",
+            "value": 9.0,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "parameter": "ttt_ms",
+            "value": 128.0,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "parameter": "hys_db",
+            "value": 1.5,
+            "slots": [
+              0,
+              1,
+              2
+            ]
+          }
+        ],
+        "reason": "Candidate-defined combination search"
+      },
+      "source": "round_4",
+      "valid": true,
+      "admissible": true,
+      "evaluation_id": "round_4:round4_final_0045:49adeaedd05a",
+      "schedule_controls": [
+        [
+          40.0,
+          30.0,
+          36.0,
+          9.0,
+          9.0,
+          9.0,
+          6.0,
+          -1.0,
+          2.0,
+          128.0,
+          1.5
+        ],
+        [
+          40.0,
+          30.0,
+          36.0,
+          9.0,
+          9.0,
+          9.0,
+          6.0,
+          -1.0,
+          2.0,
+          128.0,
+          1.5
+        ],
+        [
+          40.0,
+          30.0,
+          36.0,
+          9.0,
+          9.0,
+          9.0,
+          6.0,
+          -1.0,
+          2.0,
+          128.0,
+          1.5
+        ]
+      ],
+      "slot_start_s": [
+        180,
+        240,
+        300
+      ],
+      "parameter_order": [
+        "txp_5g",
+        "txp_4g1",
+        "txp_4g2",
+        "ret_5g",
+        "ret_4g1",
+        "ret_4g2",
+        "cio_5g",
+        "cio_4g1",
+        "cio_4g2",
+        "ttt_ms",
+        "hys_db"
+      ],
+      "predicted_kpis": [
+        [
+          [
+            10.544523239135742,
+            48.38440704345703,
+            1.1796469688415527,
+            -75.5460433959961,
+            55.92274475097656,
+            107.35196685791016,
+            13.791596412658691,
+            0.07298162579536438,
+            -82.9042739868164,
+            107.29996490478516,
+            0.2488373965024948
+          ],
+          [
+            6.670900344848633,
+            39.339263916015625,
+            16.11249351501465,
+            -73.31217193603516,
+            53.01836013793945,
+            60.28123092651367,
+            5.351517200469971,
+            0.14880411326885223,
+            -79.50015258789062,
+            60.24773406982422,
+            1.857149600982666
+          ],
+          [
+            6.545536518096924,
+            41.205421447753906,
+            19.259906768798828,
+            -69.41564178466797,
+            59.930328369140625,
+            87.51044464111328,
+            15.069524765014648,
+            0.21828393638134003,
+            -81.4368896484375,
+            87.50655364990234,
+            2.2717061042785645
+          ]
+        ],
+        [
+          [
+            10.947580337524414,
+            49.886661529541016,
+            1.304880142211914,
+            -75.63285064697266,
+            55.82432556152344,
+            111.55044555664062,
+            14.214635848999023,
+            0.08088049292564392,
+            -83.02058410644531,
+            111.51042175292969,
+            0.26512646675109863
+          ],
+          [
+            6.823579788208008,
+            40.59012985229492,
+            16.35483741760254,
+            -73.3898696899414,
+            52.77660369873047,
+            62.49781799316406,
+            5.585876941680908,
+            0.1462465077638626,
+            -79.56846618652344,
+            62.468605041503906,
+            1.92939293384552
+          ],
+          [
+            6.795854091644287,
+            43.04057312011719,
+            19.25838851928711,
+            -69.43714141845703,
+            59.76665115356445,
+            91.56111907958984,
+            15.545930862426758,
+            0.2150088995695114,
+            -81.18983459472656,
+            91.56968688964844,
+            2.567084789276123
+          ]
+        ],
+        [
+          [
+            11.27109432220459,
+            51.04151153564453,
+            1.448939561843872,
+            -75.71209716796875,
+            55.72768783569336,
+            115.48736572265625,
+            14.624149322509766,
+            0.0920780599117279,
+            -83.12113952636719,
+            115.45887756347656,
+            0.2827521562576294
+          ],
+          [
+            6.943338394165039,
+            41.57492446899414,
+            16.575063705444336,
+            -73.46294403076172,
+            52.56257247924805,
+            64.48965454101562,
+            5.799417018890381,
+            0.14283493161201477,
+            -79.6382064819336,
+            64.46455383300781,
+            1.9736042022705078
+          ],
+          [
+            7.005767822265625,
+            44.5625114440918,
+            19.27280044555664,
+            -69.47901916503906,
+            59.60834884643555,
+            95.30436706542969,
+            15.989510536193848,
+            0.2086472511291504,
+            -81.01151275634766,
+            95.32469177246094,
+            2.7918858528137207
+          ]
+        ]
+      ],
+      "kpi_order": [
+        "goodput_mbps",
+        "prb_pct",
+        "bler_pct",
+        "rsrp_mean_dbm",
+        "sinr_mean_db",
+        "ho_attempts",
+        "pingpongs",
+        "rlfs",
+        "rsrp_p10_dbm",
+        "ho_successes",
+        "delay_over_100ms_pct"
+      ],
+      "objectives": [
+        {
+          "expectation_id": "A_objective",
+          "role": "objective",
+          "intent": "MLB",
+          "metric": "load",
+          "cells": [
+            0,
+            1,
+            2
+          ],
+          "cell_agg": "mean_absolute_deviation",
+          "time_agg": "max",
+          "slots": [
+            0,
+            1,
+            2
+          ],
+          "op": "<=",
+          "threshold": 7.715616861979167,
+          "unit": "percentage_points",
+          "predicted_value": 3.6053619384765625,
+          "scale": 11.31691445244683,
+          "signed_margin": 4.1102549235026045,
+          "normalized_margin": 0.3631957227187421,
+          "shortfall": 0.0,
+          "normalized_shortfall": 0.0,
+          "satisfied": true,
+          "per_slot_values": [
+            3.6053619384765625,
+            3.5872489081488723,
+            3.5434638129340286
+          ],
+          "selected_slot_values": [
+            3.6053619384765625,
+            3.5872489081488723,
+            3.5434638129340286
+          ]
+        },
+        {
+          "expectation_id": "B_objective",
+          "role": "objective",
+          "intent": "Latency",
+          "metric": "delay",
+          "cells": [
+            0,
+            1,
+            2
+          ],
+          "cell_agg": "max",
+          "time_agg": "max",
+          "slots": [
+            0,
+            1,
+            2
+          ],
+          "op": "<=",
+          "threshold": 1.049555778503418,
+          "unit": "percent",
+          "predicted_value": 2.7918858528137207,
+          "scale": 7.338512420654297,
+          "signed_margin": -1.7423300743103027,
+          "normalized_margin": -0.23742278740395698,
+          "shortfall": 1.7423300743103027,
+          "normalized_shortfall": 0.23742278740395698,
+          "satisfied": false,
+          "per_slot_values": [
+            2.2717061042785645,
+            2.567084789276123,
+            2.7918858528137207
+          ],
+          "selected_slot_values": [
+            2.2717061042785645,
+            2.567084789276123,
+            2.7918858528137207
+          ]
+        }
+      ],
+      "constraints": [
+        {
+          "expectation_id": "A_constraint",
+          "role": "constraint",
+          "intent": "MLB",
+          "metric": "delay",
+          "cells": [
+            0,
+            1,
+            2
+          ],
+          "cell_agg": "mean",
+          "time_agg": "max",
+          "slots": [
+            0,
+            1,
+            2
+          ],
+          "op": "<=",
+          "threshold": 2.5330099860827127,
+          "unit": "percent",
+          "predicted_value": 1.6827474037806194,
+          "scale": 3.249823006490866,
+          "signed_margin": 0.8502625823020933,
+          "normalized_margin": 0.26163350453359,
+          "shortfall": 0.0,
+          "normalized_shortfall": 0.0,
+          "satisfied": true,
+          "per_slot_values": [
+            1.4592310339212418,
+            1.5872013966242473,
+            1.6827474037806194
+          ],
+          "selected_slot_values": [
+            1.4592310339212418,
+            1.5872013966242473,
+            1.6827474037806194
+          ]
+        },
+        {
+          "expectation_id": "B_constraint",
+          "role": "constraint",
+          "intent": "Latency",
+          "metric": "load",
+          "cells": [
+            0,
+            1,
+            2
+          ],
+          "cell_agg": "all_range",
+          "time_agg": "max",
+          "slots": [
+            0,
+            1,
+            2
+          ],
+          "op": "<=",
+          "threshold": 43.11208438873291,
+          "unit": "percentage_points",
+          "predicted_value": 9.46658706665039,
+          "scale": 29.081390380859375,
+          "signed_margin": 33.64549732208252,
+          "normalized_margin": 1.1569425285878738,
+          "shortfall": 0.0,
+          "normalized_shortfall": 0.0,
+          "satisfied": true,
+          "per_slot_values": [
+            9.045143127441406,
+            9.296531677246094,
+            9.46658706665039
+          ],
+          "selected_slot_values": [
+            9.045143127441406,
+            9.296531677246094,
+            9.46658706665039
+          ]
+        }
+      ],
+      "feasible": true,
+      "all_goals_satisfied": false,
+      "objective_attainment": 0.8812886062980215,
+      "objective_normalized_shortfall": 0.11871139370197849,
+      "objective_weights": [
+        0.5,
+        0.5
+      ],
+      "worst_constraint_violation": 0.0,
+      "total_constraint_violation": 0.0,
+      "reconfiguration_deviation": 0.4561970218819843,
+      "deviation_definition": "Direct-control proxy: mean over evaluation slots and 11 RCP coordinates of abs(candidate effective value - original requested value) / training control std. This is not the paper's application operating-range/cell/timing distance.",
+      "warnings": [],
+      "ns3_validated": false,
+      "intent_sha256": "b2dc70a680c12f37b4a70e925eea9a5702c3ba20817870e69deb03ec0bdc2373",
+      "screening": {
+        "feasible": true,
+        "all_goals_satisfied": false,
+        "objective_attainment": 0.8812886062980215,
+        "objective_normalized_shortfall": 0.11871139370197849,
+        "worst_constraint_violation": 0.0,
+        "total_constraint_violation": 0.0,
+        "reconfiguration_deviation": 0.4561970218819843
+      },
+      "effects_vs_original": [
+        {
+          "expectation_id": "A_objective",
+          "role": "objective",
+          "metric": "load",
+          "reference_value": 12.378004286024305,
+          "candidate_value": 3.6053619384765625,
+          "delta": -8.772642347547743,
+          "unit": "percentage_points"
+        },
+        {
+          "expectation_id": "B_objective",
+          "role": "objective",
+          "metric": "delay",
+          "reference_value": 10.533282279968262,
+          "candidate_value": 2.7918858528137207,
+          "delta": -7.741396427154541,
+          "unit": "percent"
+        },
+        {
+          "expectation_id": "A_constraint",
+          "role": "constraint",
+          "metric": "delay",
+          "reference_value": 4.377297600110372,
+          "candidate_value": 1.6827474037806194,
+          "delta": -2.694550196329752,
+          "unit": "percent"
+        },
+        {
+          "expectation_id": "B_constraint",
+          "role": "constraint",
+          "metric": "load",
+          "reference_value": 33.436031341552734,
+          "candidate_value": 9.46658706665039,
+          "delta": -23.969444274902344,
+          "unit": "percentage_points"
+        }
+      ],
+      "effects_vs_hold_current": [
+        {
+          "expectation_id": "A_objective",
+          "role": "objective",
+          "metric": "load",
+          "reference_value": 6.924449496799045,
+          "candidate_value": 3.6053619384765625,
+          "delta": -3.319087558322482,
+          "unit": "percentage_points"
+        },
+        {
+          "expectation_id": "B_objective",
+          "role": "objective",
+          "metric": "delay",
+          "reference_value": 6.940191268920898,
+          "candidate_value": 2.7918858528137207,
+          "delta": -4.148305416107178,
+          "unit": "percent"
+        },
+        {
+          "expectation_id": "A_constraint",
+          "role": "constraint",
+          "metric": "delay",
+          "reference_value": 3.361220488945643,
+          "candidate_value": 1.6827474037806194,
+          "delta": -1.6784730851650236,
+          "unit": "percent"
+        },
+        {
+          "expectation_id": "B_constraint",
+          "role": "constraint",
+          "metric": "load",
+          "reference_value": 18.01618194580078,
+          "candidate_value": 9.46658706665039,
+          "delta": -8.54959487915039,
+          "unit": "percentage_points"
+        }
+      ]
+    },
+    "ns3_validated": false,
+    "deployment_approved": false
+  },
+  "scenario": {
+    "run_id": "conflict_0155",
+    "start_s": 180,
+    "parameters": [
+      "txp_5g",
+      "txp_4g1",
+      "txp_4g2",
+      "ret_5g",
+      "ret_4g1",
+      "ret_4g2",
+      "cio_5g",
+      "cio_4g1",
+      "cio_4g2",
+      "ttt_ms",
+      "hys_db"
+    ],
+    "baseline_controls": [
+      40.0,
+      43.0,
+      40.0,
+      9.0,
+      9.0,
+      9.0,
+      6.0,
+      -1.0,
+      -1.0,
+      256.0,
+      1.0
+    ],
+    "original_controls": [
+      40.0,
+      43.0,
+      40.0,
+      9.0,
+      9.0,
+      9.0,
+      6.0,
+      -1.0,
+      2.0,
+      256.0,
+      1.0
+    ]
+  }
+}
