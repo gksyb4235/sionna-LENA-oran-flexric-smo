@@ -255,7 +255,14 @@ class ConflictScheduleControl
         const auto family = key.substr(0, 4);
         if (family == "txp_")
         {
-            Require(InDomain(value, {30, 33, 37, 40, 43}), "Unsupported TxP");
+            if (std::getenv("MITIGATION_PLAN_ALLOW_CONTINUOUS_TXP"))
+            {
+                Require(value >= 0 && value <= 60, "TxP requires 0..60 dBm");
+            }
+            else
+            {
+                Require(InDomain(value, {30, 33, 37, 40, 43}), "Unsupported TxP");
+            }
         }
         else if (family == "ret_")
         {
