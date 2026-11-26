@@ -10,21 +10,32 @@ import subprocess
 import sys
 
 TAG='react_prefix_20261124'
+RETRY_TAG='react_prefix_retry_20261126'
 REPO=Path(__file__).resolve().parents[3]
 
-def load_partition(host):
+def load_partition(host, batch=TAG):
     package=REPO/'experiment/khu'/TAG
     manifest_path=package/'manifest.json'
     manifest=json.loads(manifest_path.read_text())
-    allocation=json.loads((package/'allocation.json').read_text())
+    if batch not in (TAG,RETRY_TAG):raise ValueError('Unknown replay batch')
+    allocation=json.loads((REPO/'experiment/khu'/batch/'allocation.json').read_text())
     if hashlib.sha256(manifest_path.read_bytes()).hexdigest()!=allocation['manifest_sha256']:
         raise ValueError('Manifest changed after host allocation')
     all_ids=[]
     for part in allocation['hosts'].values():
         if len(part['ids'])>part['cpu_capacity']:raise ValueError('More jobs than available host cores')
         all_ids.extend(part['ids'])
-    if len(all_ids)!=len(set(all_ids)) or set(all_ids)!=set(manifest['queues']['r5_new']):
-        raise ValueError('Host allocation must cover the new queue exactly once')
+    expected=manifest['queues']['r5_new']
+    if batch==RETRY_TAG:
+        original=json.loads((package/'allocation.json').read_text())
+        expected=original['hosts']['Server']['ids']
+        if set(allocation['hosts'])!={'PC1','PC3'} or len(expected)!=21 or 705 in all_ids:
+            raise ValueError('Retry batch must contain only the 21 interrupted Server jobs')
+        if [len(allocation['hosts'][h]['ids']) for h in ('PC1','PC3')]!=[12,9]:
+            raise ValueError('Retry allocation must be PC1=12 and PC3=9')
+    if len(all_ids)!=len(set(all_ids)) or set(all_ids)!=set(expected):
+        raise ValueError('Host allocation must cover its eligible queue exactly once')
+    if host not in allocation['hosts']:raise ValueError('Host is not assigned to this batch')
     return allocation['hosts'][host],manifest
 
 def active(record):
@@ -35,13 +46,16 @@ def active(record):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('host',choices=['PC1','PC2','PC3','PC4','Server'])
+    parser.add_argument('--batch',default=TAG,choices=[TAG,RETRY_TAG])
     mode=parser.add_mutually_exclusive_group()
     mode.add_argument('--status',action='store_true')
     mode.add_argument('--dry-run',action='store_true')
     mode.add_argument('--preflight',action='store_true')
     args=parser.parse_args()
-    part,manifest=load_partition(args.host)
-    output=REPO/part['output_relative']
+    part,manifest=load_partition(args.host,args.batch)
+    output=(REPO/part['output_relative']).resolve()
+    if not output.is_relative_to((REPO/'experiment/khu/results').resolve()):
+        raise ValueError('Output must remain within the repository results directory')
     runner=REPO/'experiment/khu/tools/react_prefix_sweep.py'
     command=[sys.executable,str(runner),'--queue','r5_new','--ids',','.join(map(str,part['ids'])),
              '--workers',str(len(part['ids'])),'--output',str(output)]
@@ -54,11 +68,11 @@ def main():
             status=r.get('status','not_started');counts[status]=counts.get(status,0)+1
             rows.append(dict(job_id=jid,status=status))
         record=json.loads(recordpath.read_text()) if recordpath.exists() else None
-        print(json.dumps(dict(host=args.host,output=str(output),counts=counts,jobs=rows,
+        print(json.dumps(dict(host=args.host,batch=args.batch,output=str(output),counts=counts,jobs=rows,
             launcher_running=active(record) if record else None),indent=2));return
     if args.dry_run or args.preflight:
         subprocess.run(command+(['--dry-run'] if args.dry_run else ['--preflight']),check=True,cwd=REPO);return
-    if args.host=='PC1':
+    if args.host=='PC1' and args.batch==TAG:
         raise ValueError('PC1 already owns 16 running jobs. Use status.sh; do not start a second launcher.')
     if os.name!='posix':raise ValueError('Run in Linux/WSL/container')
     import fcntl
@@ -79,7 +93,7 @@ def main():
         with logfile.open('ab',buffering=0) as log:
             child=subprocess.Popen(command,cwd=REPO,stdin=subprocess.DEVNULL,
                 stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
-        record=dict(host=args.host,pid=child.pid,argv=command,workers=len(part['ids']),cores_per_job=1,
+        record=dict(host=args.host,batch=args.batch,pid=child.pid,argv=command,workers=len(part['ids']),cores_per_job=1,
             output=str(output),log=str(logfile),started_at_utc=datetime.now(timezone.utc).isoformat())
         recordpath.write_text(json.dumps(record,indent=2)+'\n')
         print(json.dumps(record,indent=2))

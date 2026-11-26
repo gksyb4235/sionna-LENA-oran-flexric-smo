@@ -1,0 +1,77 @@
+{
+  "schema": "agora-r5-prefix-retry-v1",
+  "date_kst": "2026-11-26",
+  "manifest_sha256": "b0ffe5b4171c0bb2fc8b95d5ed72835945594986a3de0a8b2150519e2ed50d9d",
+  "original_batch": "react_prefix_20261124",
+  "audit_sha256": "da905945c3dc80708fad7066e11e2375a02cafb8dfd827e1b6838ee60b646793",
+  "total_jobs": 21,
+  "hosts": {
+    "PC1": {
+      "ids": [
+        709,
+        711,
+        712,
+        713,
+        714,
+        715,
+        716,
+        717,
+        718,
+        719,
+        720,
+        721
+      ],
+      "job_ids": [
+        "rq3_0709",
+        "rq3_0711",
+        "rq3_0712",
+        "rq3_0713",
+        "rq3_0714",
+        "rq3_0715",
+        "rq3_0716",
+        "rq3_0717",
+        "rq3_0718",
+        "rq3_0719",
+        "rq3_0720",
+        "rq3_0721"
+      ],
+      "workers": 12,
+      "cores_per_job": 1,
+      "cpu_capacity": 16,
+      "output_relative": "experiment/khu/results/react_prefix_retry_20261126/PC1"
+    },
+    "PC3": {
+      "ids": [
+        722,
+        723,
+        724,
+        725,
+        726,
+        727,
+        728,
+        729,
+        730
+      ],
+      "job_ids": [
+        "rq3_0722",
+        "rq3_0723",
+        "rq3_0724",
+        "rq3_0725",
+        "rq3_0726",
+        "rq3_0727",
+        "rq3_0728",
+        "rq3_0729",
+        "rq3_0730"
+      ],
+      "workers": 9,
+      "cores_per_job": 1,
+      "cpu_capacity": 14,
+      "output_relative": "experiment/khu/results/react_prefix_retry_20261126/PC3"
+    }
+  },
+  "selection": "All 21 interrupted Server jobs, no observed-performance filtering.",
+  "excluded_header_failure": "rq3_0705",
+  "all_disjoint": true,
+  "all_interrupted_server_jobs_covered": true,
+  "execution": "Restart from t=0 to 900s using the original schedules, inputs and seed; no checkpoint resume."
+}
